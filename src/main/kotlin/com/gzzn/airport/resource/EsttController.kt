@@ -9,9 +9,9 @@ import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
 
 @Controller(value = "/estt")
-class EsttController(val esttService: EsttService) {
+class EsttController(private val esttService: EsttService) {
 	@Get(uri = "/season")
-	fun getFlightSeason() : FlightSeason? {
+	fun getFlightSeason(): FlightSeason? {
 		return esttService.getActiveSeason()
 	}
 
