@@ -67,11 +67,9 @@ class EsttService(
 
 
 	fun calculate(flightNumber: String, flightDate: Date): FlyingTimeResponse {
+		log.info("calculate flying time for $flightNumber on $flightDate")
 		val seasonalFlight = getSeasonalFlight(flightNumber, flightDate)
 		val context = FlyingTimeContext(
-			flightNumber,
-			flightDate,
-			flightSeason = getActiveSeason(),
 			seasonalFlight = seasonalFlight,
 			historyFlights = getHistoryFlightsWithSeasonFlight(seasonalFlight, flightDate))
 		val qualifiedFlights = getQualifiedHistoryFlights(context)
@@ -79,12 +77,16 @@ class EsttService(
 			log.debug("get qualified history flight : ${qualifiedFlights.size}")
 		}
 		if (qualifiedFlights.size >= minHistoryFlight) {
+			if (log.isDebugEnabled) {
+				log.debug("get enough history flight ${qualifiedFlights.size}")
+			}
 			val totalFlyingTime = qualifiedFlights.asSequence()
 				.take(minHistoryFlight)
 				.sumBy { getMinutes(it.preActualTime, it.actualTime) }
+			val average = totalFlyingTime / minHistoryFlight
 			val flyingTimeResponse = FlyingTimeResponse(
 				flightNumber, flightDate,
-				totalFlyingTime / minHistoryFlight,
+				average,
 				history = true,
 				seasonal = false,
 				message = "calculate by $minHistoryFlight history"
@@ -93,6 +95,9 @@ class EsttService(
 			return flyingTimeResponse
 		}
 		if (context.seasonalFlight != null) {
+			if (log.isDebugEnabled) {
+				log.debug("history is not enough, get flying time by seasonal flight $seasonalFlight")
+			}
 			val flyingTimeResponse = FlyingTimeResponse(flightNumber,
 				flightDate, context.seasonalFlight.flyingTime,
 				history = false, seasonal = true, message = "seasonal flight flying time")
