@@ -56,6 +56,8 @@ steps:
     volumes:
       - name: certs
         path: /etc/ssl/certs
+      - name: docker
+        path: /var/run/docker.sock
     settings:
       repo: reg.int.it2000.com.cn/changde/estt-calc
       registry: reg.int.it2000.com.cn
@@ -74,6 +76,8 @@ steps:
     volumes:
       - name: certs
         path: /etc/ssl/certs
+      - name: docker
+        path: /var/run/docker.sock
     settings:
       repo: reg.int.it2000.com.cn/changde/estt-calc
       registry: reg.int.it2000.com.cn
@@ -92,3 +96,6 @@ volumes:
   - name: certs
     host:
       path: /etc/ssl/certs
+  - name: docker
+    host:
+      path: /var/run/docker.sock
