@@ -1,6 +1,11 @@
+---
 kind: pipeline
-name: Estimate Time Caculation
+name: default
 type: docker
+
+platform:
+  os: linux
+  arch: amd64
 
 clone:
   image: reg.int.it2000.com.cn/devops/git
@@ -14,6 +19,7 @@ steps:
       - name: gradle
         path: /home/gradle/.gradle
     commands:
+      - gradle clean
       - gradle test
 
   - name: dist
@@ -22,7 +28,8 @@ steps:
       - name: gradle
         path: /home/gradle/.gradle
     commands:
-      - gradle build
+      - gradle assemble
+      - gradle check
     when:
       event: tag
 
@@ -40,6 +47,16 @@ steps:
         - sha256
     when:
       event: tag
+
+  - name: publish
+    image: plugins/docker
+    settings:
+      repo: reg.int.it2000.com.cn/estt-calc
+      tags: [ "${DRONE_COMMIT_SHA:0:7}","latest" ]
+      username:
+        from_secret: registry_user
+      password:
+        from_secret: registry_pass
 
 volumes:
   - name: gradle
