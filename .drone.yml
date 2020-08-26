@@ -79,9 +79,16 @@ steps:
       - name: docker
         path: /var/run/docker.sock
     settings:
+<<<<<<< HEAD
       repo: reg.int.it2000.com.cn/changde/estt-calc
       registry: reg.int.it2000.com.cn
       auto_tag: true
+=======
+      repo: changde/estt-calc
+      registry: reg.int.it2000.com.cn
+      dockerfile: ./Dockerfile
+      tags: [ "${DRONE_COMMIT_SHA:0:7}","latest" ]
+>>>>>>> 0ff3301... add registry
       username:
         from_secret: registry_user
       password:
