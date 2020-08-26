@@ -82,6 +82,7 @@ steps:
       repo: reg.int.it2000.com.cn/changde/estt-calc
       registry: reg.int.it2000.com.cn
       tags: [ "${DRONE_COMMIT_SHA:0:7}","latest" ]
+      auto_tag: true
       username:
         from_secret: registry_user
       password:
