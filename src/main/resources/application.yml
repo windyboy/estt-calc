@@ -3,13 +3,13 @@ micronaut:
     name: estt-calc
 datasources:
   gzzn :
-    url: jdbc:oracle:thin:@bj023.int.it2000.com.cn:1521:orcl
+    url: ${ORACLE_URL:jdbc:oracle:thin:@bj023.int.it2000.com.cn:1521:orcl}
     driverClassName: oracle.jdbc.OracleDriver
-    username: 'cdjc'
-    password: 'cdjc'
+    username: ${ORACLE_USER:cdjc}
+    password: ${ORACLE_PASS:cdjc}
     dialect: Oracle
 
 default:
-  maxHistoryDelay: 120
-  minHistoryFlight: 20
+  maxHistoryDelay: ${MAX_DELAY:120}
+  minHistoryFlight: ${MIN_HISTORY:20}
   dateFormat: 'yyMMdd'
