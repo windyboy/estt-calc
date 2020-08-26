@@ -1,4 +1,4 @@
-kind: pipeline:wq
+kind: pipeline
 name: Estimate Time Caculation
 type: docker
 
