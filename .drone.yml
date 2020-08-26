@@ -65,6 +65,25 @@ steps:
         from_secret: registry_user
       password:
         from_secret: registry_pass
+    when:
+      branch:
+        - develop
+
+  - name: release-publish
+    image: plugins/docker
+    volumes:
+      - name: certs
+        path: /etc/ssl/certs
+    settings:
+      repo: reg.int.it2000.com.cn/changde/estt-calc
+      registry: reg.int.it2000.com.cn
+      auto_tag: true
+      username:
+        from_secret: registry_user
+      password:
+        from_secret: registry_pass
+    when:
+      event: tag
 
 volumes:
   - name: gradle
