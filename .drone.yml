@@ -1,0 +1,67 @@
+---
+kind: pipeline
+name: default
+type: docker
+
+platform:
+  os: linux
+  arch: amd64
+
+clone:
+  image: reg.int.it2000.com.cn/devops/git
+  tags: true
+  skip_verify: true
+
+steps:
+  - name: compile and test
+    image: reg.int.it2000.com.cn/library/gradle:6.5-jdk14
+    volumes:
+      - name: gradle
+        path: /home/gradle/.gradle
+    commands:
+      - gradle clean
+      - gradle test
+
+  - name: dist
+    image: reg.int.it2000.com.cn/library/gradle:6.5-jdk14
+    volumes:
+      - name: gradle
+        path: /home/gradle/.gradle
+    commands:
+      - gradle assemble
+      - gradle check
+    when:
+      event: tag
+
+  - name: release
+    image: plugins/gitea-release
+    volumes:
+      - name: certs
+        path: /etc/ssl/certs
+    settings:
+      api_key: f031dd6b2179a4071c980d14db43aadfffa3d1b9
+      base_url: https://gitea.int.it2000.com.cn
+      files:
+        - build/distributions/*
+      checksum:
+        - sha256
+    when:
+      event: tag
+
+  - name: publish
+    image: plugins/docker
+    settings:
+      repo: reg.int.it2000.com.cn/estt-calc
+      tags: [ "${DRONE_COMMIT_SHA:0:7}","latest" ]
+      username:
+        from_secret: registry_user
+      password:
+        from_secret: registry_pass
+
+volumes:
+  - name: gradle
+    host:
+      path: /opt/gradle
+  - name: certs
+    host:
+      path: /etc/ssl/certs
