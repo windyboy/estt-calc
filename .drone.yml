@@ -25,13 +25,13 @@ steps:
       - gradle clean
       - gradle test
 
-  - name: dist
+  - name: build
     image: reg.int.it2000.com.cn/library/gradle:6.5-jdk14
     volumes:
       - name: gradle
         path: /home/gradle/.gradle
     commands:
-      - gradle assemble
+      - gradle build
       - gradle check
     when:
       event: tag
