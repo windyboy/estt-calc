@@ -54,7 +54,9 @@ steps:
       - name: certs
         path: /etc/ssl/certs
     settings:
-      repo: reg.int.it2000.com.cn/estt-calc
+      repo: changde/estt-calc
+      registry: reg.int.it2000.com.cn
+      dockerfile: ./Dockerfile
       tags: [ "${DRONE_COMMIT_SHA:0:7}","latest" ]
       username:
         from_secret: registry_user
