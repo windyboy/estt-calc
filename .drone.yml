@@ -50,6 +50,9 @@ steps:
 
   - name: publish
     image: plugins/docker
+    volumes:
+      - name: certs
+        path: /etc/ssl/certs
     settings:
       repo: reg.int.it2000.com.cn/estt-calc
       tags: [ "${DRONE_COMMIT_SHA:0:7}","latest" ]
