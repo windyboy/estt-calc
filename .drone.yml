@@ -18,6 +18,9 @@ steps:
     volumes:
       - name: gradle
         path: /home/gradle/.gradle
+    environment:
+      ORACLE_USER: cdjc
+      ORACLE_PASS: cdjc
     commands:
       - gradle clean
       - gradle test

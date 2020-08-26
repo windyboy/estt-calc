@@ -2,8 +2,9 @@ micronaut:
   application:
     name: estt-calc
 datasources:
-  gzzn :
-    url: ${ORACLE_URL:jdbc:oracle:thin:@bj023.int.it2000.com.cn:1521:orcl}
+  gzzn:
+    # TODO use env variables
+    url: 'jdbc:oracle:thin:@bj023.int.it2000.com.cn:1521:orcl'
     driverClassName: oracle.jdbc.OracleDriver
     username: ${ORACLE_USER:cdjc}
     password: ${ORACLE_PASS:cdjc}
