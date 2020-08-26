@@ -33,8 +33,8 @@ steps:
     commands:
       - gradle build
       - gradle check
-    when:
-      event: tag
+    #when:
+    #  event: tag
 
   - name: release
     image: plugins/gitea-release
@@ -59,12 +59,12 @@ steps:
     settings:
       repo: changde/estt-calc
       registry: reg.int.it2000.com.cn
-      dockerfile: ./Dockerfile
       tags: [ "${DRONE_COMMIT_SHA:0:7}","latest" ]
-      username:
-        from_secret: registry_user
-      password:
-        from_secret: registry_pass
+      auth: ZmVuZ3poaXFpYW5nOmFkbWluZ3p6bg==
+      #username:
+      #  from_secret: registry_user
+      #password:
+      #  from_secret: registry_pass
 
 volumes:
   - name: gradle
