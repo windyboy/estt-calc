@@ -6,7 +6,7 @@ plugins {
     id "application"
 }
 
-version "0.1"
+version "$appVersion"
 group "com.gzzn.airport"
 
 repositories {
