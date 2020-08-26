@@ -1,4 +1,3 @@
-
 FROM reg.int.it2000.com.cn/library/openjdk:14-alpine
 MAINTAINER fengzhq@it2000.com.cn
 WORKDIR /opt/app
