@@ -60,11 +60,11 @@ steps:
       repo: reg.int.it2000.com.cn/changde/estt-calc
       registry: reg.int.it2000.com.cn
       tags: [ "${DRONE_COMMIT_SHA:0:7}","latest" ]
-      auth: ZmVuZ3poaXFpYW5nOmFkbWluZ3p6bg==
-      #username:
-      #  from_secret: registry_user
-      #password:
-      #  from_secret: registry_pass
+      #      auth: ZmVuZ3poaXFpYW5nOmFkbWluZ3p6bg==
+      username:
+        from_secret: registry_user
+      password:
+        from_secret: registry_pass
 
 volumes:
   - name: gradle
