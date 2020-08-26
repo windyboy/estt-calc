@@ -3,7 +3,12 @@ micronaut:
     name: estt-calc
 datasources:
   gzzn:
+<<<<<<< HEAD
     url: "jdbc:oracle:thin:@${ORACLE_HOST:bj023.int.it2000.com.cn}:${ORACLE_PORT:1521}:${ORACLE_SID:orcl}"
+=======
+    # TODO use env variables
+    url: 'jdbc:oracle:thin:@bj023.int.it2000.com.cn:1521:orcl'
+>>>>>>> bfad9ca... update env variable
     driverClassName: oracle.jdbc.OracleDriver
     username: ${ORACLE_USER:cdjc}
     password: ${ORACLE_PASS:cdjc}
