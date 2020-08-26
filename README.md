@@ -1,4 +1,4 @@
-[![Build Status](http://d2.int.it2000.com.cn/api/badges/thyia/estt-calc/status.svg)](http://d2.int.it2000.com.cn/thyia/estt-calc)
+[![Build Status](http://d2.int.it2000.com.cn/api/badges/thyia/estt-calc-kotlin/status.svg)](http://d2.int.it2000.com.cn/thyia/estt-calc-kotlin)
 
 # 到港航班预计时间计算
 
