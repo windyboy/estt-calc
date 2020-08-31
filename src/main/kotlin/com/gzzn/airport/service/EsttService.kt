@@ -135,12 +135,15 @@ class EsttService(
 	private fun getQualifiedHistoryFlights(flyingTimeContext: FlyingTimeContext): List<HistoryFlight> {
 		return flyingTimeContext.historyFlights.asSequence()
 			.sortedByDescending { it.scheduledTime }
-			.filter { checkFlightTooMuchDelay(it) }
+			.filter { checkFlightTooMuchDelay(it, flyingTimeContext.seasonalFlight) }
 			.toList()
 	}
 
-	private fun checkFlightTooMuchDelay(historyFlight: HistoryFlight): Boolean {
+	private fun checkFlightTooMuchDelay(historyFlight: HistoryFlight, seasonalFlight: SeasonalFlight?): Boolean {
 		val minutes = getMinutes(historyFlight.scheduledTime, historyFlight.actualTime)
+		if (seasonalFlight != null) {
+			return abs(seasonalFlight.flyingTime - minutes) < minHistoryFlight && minutes < maxHistoryDelay
+		}
 		return minutes < maxHistoryDelay
 	}
 
