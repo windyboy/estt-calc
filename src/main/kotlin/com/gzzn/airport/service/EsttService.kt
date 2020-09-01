@@ -64,7 +64,10 @@ class EsttService(
 		val operationDay = getOperationDay(historyFlight.flightDate)
 		val actualFlyTime = getMinutes(historyFlight.preActualTime, historyFlight.actualTime)
 		val result = seasonalFlight?.operationDays!!.contains(operationDay.toString()) && abs(actualFlyTime - seasonalFlight.flyingTime) < maxHistoryDelay
-		log.info(" history flight $historyFlight filter: $result")
+		if (log.isDebugEnabled) {
+			log.debug("history: $historyFlight , include :$result")
+		}
+		// log.info(" history flight $historyFlight filter: $result")
 		return result
 	}
 
