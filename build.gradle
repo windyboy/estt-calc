@@ -38,6 +38,7 @@ dependencies {
     implementation("io.micronaut.data:micronaut-data-jdbc")
 	implementation("joda-time:joda-time:${jodaTimeVersion}")
 	runtimeOnly("com.oracle.database.jdbc:ojdbc10:${oracleVersion}")
+	runtimeOnly ('com.oracle.database.nls:orai18n:19.7.0.0')
     runtimeOnly("ch.qos.logback:logback-classic")
     runtimeOnly("com.fasterxml.jackson.module:jackson-module-kotlin")
     runtimeOnly("com.h2database:h2")
