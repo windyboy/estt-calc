@@ -13,3 +13,4 @@ default:
   maxHistoryDelay: ${MAX_DELAY:120}
   minHistoryFlight: ${MIN_HISTORY:20}
   dateFormat: 'yyMMdd'
+  startMinus: ${START_MINUS:60}

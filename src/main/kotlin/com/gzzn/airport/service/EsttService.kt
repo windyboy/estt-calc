@@ -18,7 +18,8 @@ class EsttService(
 	private val historyFlightRepository: HistoryFlightRepository,
 	@Value("\${default.maxHistoryDelay:120}") val maxHistoryDelay: Int,
 	@Value("\${default.minHistoryFlight:20}") val minHistoryFlight: Int,
-	@Value("\${default.dateFormat}") val dateFormat: String
+	@Value("\${default.dateFormat}") val dateFormat: String,
+	@Value("\${default.startMinus}") val startMinus: Long
 ) {
 	companion object {
 		private val log = LoggerFactory.getLogger("EsttService")
@@ -52,7 +53,11 @@ class EsttService(
 
 	private fun getHistoryFlightsWithSeasonFlight(seasonalFlight: SeasonalFlight?, flightDate: Date): List<HistoryFlight> {
 		if (seasonalFlight != null) {
-			val historyFlights = historyFlightRepository.getArrivalFlight(seasonalFlight.flightNumber, seasonalFlight.seasonStart, flightDate)
+			val historyFlights = historyFlightRepository.getArrivalFlight(
+				seasonalFlight.flightNumber,
+				getHistoryStartDate(seasonalFlight.seasonStart),
+				flightDate
+			)
 			val filtered = historyFlights.asSequence()
 				.filter { historyFlight -> isHistoryFlight(seasonalFlight, historyFlight) }
 				.toList()
@@ -147,6 +152,13 @@ class EsttService(
 
 	private fun getMinutes(scheduledTime: Date, actualTime: Date): Int {
 		return abs(Minutes.minutesBetween(DateTime(scheduledTime), DateTime(actualTime)).minutes)
+	}
+
+	/**
+	 *  use last season flight
+	 */
+	private fun getHistoryStartDate(seasonStart: Date): Date {
+		return DateTime(seasonStart).minus(startMinus).toDate()
 	}
 
 }
