@@ -3,7 +3,7 @@ micronaut:
     name: estt-calc
 datasources:
   gzzn:
-    url: "jdbc:oracle:thin:@${ORACLE_HOST:bj023.int.it2000.com.cn}:${ORACLE_PORT:1521}:${ORACLE_SID:orcl}"
+    url: "jdbc:oracle:thin:@${ORACLE_HOST:bj024.int.it2000.com.cn}:${ORACLE_PORT:1521}:${ORACLE_SID:orcl}"
     driverClassName: oracle.jdbc.OracleDriver
     username: ${ORACLE_USER:cdjc}
     password: ${ORACLE_PASS:cdjc}

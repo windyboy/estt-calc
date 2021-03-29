@@ -40,6 +40,7 @@ class EsttService(
 
 	fun getSeasonalFlight(flightNumber: String, flightDate: Date): SeasonalFlight? {
 		val operationDay = "%${getOperationDay(flightDate)}%"
+		log.info("date: $operationDay , number: $flightNumber ")
 		val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, operationDay)
 		log.info(" get seasonal flight : $seasonalFlight ")
 		return seasonalFlight
