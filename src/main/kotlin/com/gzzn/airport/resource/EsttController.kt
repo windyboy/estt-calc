@@ -7,9 +7,17 @@ import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.service.EsttService
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
+import org.slf4j.LoggerFactory
 
 @Controller(value = "/estt")
 class EsttController(private val esttService: EsttService) {
+	companion object {
+		private val log = LoggerFactory.getLogger("EsttController")
+	}
+
+	/**
+	 * query active season
+	 */
 	@Get(uri = "/season")
 	fun getFlightSeason(): FlightSeason? {
 		return esttService.getActiveSeason()
@@ -18,7 +26,7 @@ class EsttController(private val esttService: EsttService) {
 	@Get(uri = "/seasonal/{flightNumber}/{flightDateString}")
 	fun getSeasonalFlight(flightNumber: String, flightDateString: String): SeasonalFlight? {
 		val flightDate = esttService.getFlightDate(flightDateString)
-		println("flightDate: $flightDate")
+		log.info("flightDate ", flightDate)
 		return esttService.getSeasonalFlight(flightNumber.toUpperCase(), flightDate)
 	}
 
