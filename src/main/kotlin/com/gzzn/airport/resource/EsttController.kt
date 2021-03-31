@@ -2,7 +2,7 @@ package com.gzzn.airport.resource
 
 import com.gzzn.airport.model.FlightSeason
 import com.gzzn.airport.model.FlyingTimeResponse
-import com.gzzn.airport.model.HistoryFlight
+import com.gzzn.airport.model.HistoricalFlight
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.service.EsttService
 import io.micronaut.http.annotation.Controller
@@ -19,7 +19,7 @@ class EsttController(private val esttService: EsttService) {
 	 * query active season
 	 */
 	@Get(uri = "/season")
-	fun getFlightSeason(): FlightSeason? {
+	fun getFlightSeason(): FlightSeason {
 		return esttService.getActiveSeason()
 	}
 
@@ -31,7 +31,7 @@ class EsttController(private val esttService: EsttService) {
 	}
 
 	@Get(uri = "/history/{flightNumber}/{flightDateString}")
-	fun getHistoryFlights(flightNumber: String, flightDateString: String) : List<HistoryFlight> {
+	fun getHistoryFlights(flightNumber: String, flightDateString: String): List<HistoricalFlight> {
 		val flightDate = esttService.getFlightDate(flightDateString)
 		return esttService.getHistoryFlights(flightNumber.toUpperCase(), flightDate)
 	}
