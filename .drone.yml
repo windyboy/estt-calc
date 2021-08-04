@@ -14,7 +14,7 @@ clone:
 
 steps:
   - name: compile and test
-    image: reg.int.it2000.com.cn/library/gradle:6.5-jdk14
+    image: reg.int.it2000.com.cn/library/gradle:7.1-jdk11
     volumes:
       - name: gradle
         path: /home/gradle/.gradle
@@ -26,7 +26,7 @@ steps:
       - gradle test
 
   - name: build
-    image: reg.int.it2000.com.cn/library/gradle:6.5-jdk14
+    image: reg.int.it2000.com.cn/library/gradle:7.1-jdk11
     volumes:
       - name: gradle
         path: /home/gradle/.gradle
