@@ -1,6 +1,6 @@
 applicationType: default
 defaultPackage: com.gzzn.airport
-testFramework: junit
+testFramework: spock
 sourceLanguage: kotlin
 buildTool: gradle
-features: [annotation-api, app-name, data, data-jdbc, docker, file-watch, gradle, h2, http-client, jdbc-hikari, junit, kotlin, kotlin-application, logback, netty-server, readme, shade, yaml]
+features: [ annotation-api, app-name, gradle, h2, http-client, jdbc-hikari, kotlin, kotlin-application, logback, netty-server, readme, shade, spock, yaml ]
