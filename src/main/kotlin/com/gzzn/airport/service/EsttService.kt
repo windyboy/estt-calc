@@ -78,19 +78,19 @@ class EsttService(
     }
 
     private fun isHistoryFlight(seasonalFlight: SeasonalFlight?, historyFlight: HistoricalFlight): Boolean {
+        if (seasonalFlight == null) {
+            log.warn("seasonal flight is null !")
+            return false
+        }
         val operationDay = getOperationDay(historyFlight.flightDate)
         val actualFlyTime = getMinutes(historyFlight.preActualTime, historyFlight.actualTime)
-        if (seasonalFlight != null) {
-            val result = seasonalFlight.operationDays.contains(operationDay.toString())
-                    && (historyFlight.preActualTime < historyFlight.actualTime)
-                    && abs(actualFlyTime - seasonalFlight.flyingTime) < maxHistoryDelay
-            if (log.isDebugEnabled) {
-                log.debug("history: $historyFlight , include :$result")
-            }
-            return result
+        val result = seasonalFlight.operationDays.contains(operationDay.toString())
+                && (historyFlight.preActualTime < historyFlight.actualTime)
+                && abs(actualFlyTime - seasonalFlight.flyingTime) < maxHistoryDelay
+        if (log.isDebugEnabled) {
+            log.debug("history: $historyFlight , include :$result")
         }
-        log.warn("seasonal flight is null !")
-        return false
+        return result
     }
 
 
