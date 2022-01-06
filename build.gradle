@@ -29,19 +29,19 @@ configurations {
 }
 
 dependencies {
-    kapt("io.micronaut:micronaut-http-validation")
-    kapt("io.micronaut.data:micronaut-data-processor")
+    annotationProcessor("io.micronaut:micronaut-http-validation")
+    annotationProcessor("io.micronaut.data:micronaut-data-processor")
     implementation("io.micronaut:micronaut-http-client")
     implementation("io.micronaut:micronaut-runtime")
     implementation("io.micronaut.data:micronaut-data-jdbc")
-    implementation("io.micronaut.kotlin:micronaut-kotlin-runtime")
     implementation("io.micronaut.sql:micronaut-jdbc-hikari")
-    implementation("javax.annotation:javax.annotation-api")
-    implementation("org.jetbrains.kotlin:kotlin-reflect:${kotlinVersion}")
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:${kotlinVersion}")
+    implementation("jakarta.annotation:jakarta.annotation-api")
+    compileOnly("jakarta.persistence:jakarta.persistence-api:2.2.2")
     runtimeOnly("ch.qos.logback:logback-classic")
-    runtimeOnly("com.h2database:h2")
+//    runtimeOnly("com.h2database:h2")
     implementation("io.micronaut:micronaut-validation")
+
+    compileOnly("org.graalvm.nativeimage:svm")
 
     runtimeOnly("com.fasterxml.jackson.module:jackson-module-kotlin")
 
