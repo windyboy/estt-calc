@@ -19,6 +19,7 @@ from
   FIMS_FLIGHTSCHD_HST historicalFlight
 where
   ACTUAL_DATETIME is not null
+  and PRE_DEPT_DATETIME_ACTUAL is not null
   and  ARRI_OR_DEPT='A' and flight_number = :flightNumber
   and flight_date between  :startDate
   and :endDate order by flight_date desc

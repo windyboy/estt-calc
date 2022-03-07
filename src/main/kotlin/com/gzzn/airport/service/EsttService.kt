@@ -4,12 +4,12 @@ import com.gzzn.airport.model.*
 import com.gzzn.airport.respository.HistoryFlightRepository
 import com.gzzn.airport.respository.SeasonRepository
 import io.micronaut.context.annotation.Value
+import jakarta.inject.Singleton
 import org.joda.time.DateTime
 import org.joda.time.Minutes
 import org.slf4j.LoggerFactory
 import java.text.SimpleDateFormat
 import java.util.*
-import javax.inject.Singleton
 import kotlin.math.abs
 
 @Singleton
@@ -111,7 +111,7 @@ class EsttService(
             }
             val totalFlyingTime = qualifiedFlights.asSequence()
                 .take(minHistoryFlight)
-                .sumBy { getMinutes(it.preActualTime, it.actualTime) }
+                .sumOf { getMinutes(it.preActualTime, it.actualTime) }
             val average = totalFlyingTime / minHistoryFlight
             val flyingTimeResponse = FlyingTimeResponse(
                 flightNumber, flightDate,
