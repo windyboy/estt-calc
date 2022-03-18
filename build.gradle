@@ -11,6 +11,7 @@ version "${appVersion}"
 group "com.gzzn.airport"
 
 repositories {
+
     maven { url "https://repo.int.it2000.com.cn/repository/internal/" }
     mavenCentral()
 }
