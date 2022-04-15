@@ -66,6 +66,7 @@ steps:
     settings:
       repo: reg.int.it2000.com.cn/changde/estt-calc
       registry: reg.int.it2000.com.cn
+      insecure: true
       tags: [ "${DRONE_COMMIT_SHA:0:4}","latest" ]
       #      auth: ZmVuZ3poaXFpYW5nOmFkbWluZ3p6bg==
       username:
