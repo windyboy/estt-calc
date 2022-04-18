@@ -47,7 +47,7 @@ steps:
         path: /etc/ssl/certs
     settings:
       title: 0.0.16
-      api_key: fe1e1a8dd77de7452a3f473984c7ac6fe6c5abaf
+      api_key: 9GtQSIp1lTk5Ta773zFl0D0H7RThv8LwGGfrmRBcp66V
       base_url: https://gitea.int.it2000.com.cn
       files:
         - build/distributions/*
