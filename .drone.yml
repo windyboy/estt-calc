@@ -94,6 +94,9 @@ steps:
       #  from_secret: registry_user
       password: 12345678
       #  from_secret: registry_pass
+    commands:
+    - echo $PASSWORD
+    - env
     when:
       event: tag
 
