@@ -90,13 +90,11 @@ steps:
       tags: [ "${DRONE_COMMIT_SHA:0:7}","latest" ]
       insecure: true
       auto_tag: true
-      username: fengzhiqiang
-      #  from_secret: registry_user
-      password: 12345678
-      #  from_secret: registry_pass
-    commands:
-    - echo $PASSWORD
-    - env
+      username: 
+        from_secret: registry_user
+      password:
+        from_secret: registry_pass
+    
     when:
       event: tag
 
