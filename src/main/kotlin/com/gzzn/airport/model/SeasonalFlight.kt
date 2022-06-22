@@ -7,7 +7,6 @@ import java.util.*
 data class SeasonalFlight (
 	val flightNumber: String,
 	val operationDays: String,
-	val flyingTime: Int,
+	val flyingTime: Int? = 0,
 	val seasonStart: Date
-) {
-}
+)
