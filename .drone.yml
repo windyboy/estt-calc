@@ -13,11 +13,21 @@ clone:
   skip_verify: true
 
 steps:
+  - name: restore-cache
+      image: drillster/drone-volume-cache
+      settings:
+        restore: true
+        mount:
+          - /home/gradle/.gradle
+      volumes:
+        - name: cache
+          path: /cache
+
   - name: compile and test
     image: reg.int.it2000.com.cn/library/gradle:7.1-jdk11
     volumes:
-      - name: gradle
-        path: /home/gradle/.gradle
+#      - name: gradle
+#        path: /home/gradle/.gradle
       - name: certs
         path: /etc/ssl/certs
     environment:
@@ -30,8 +40,8 @@ steps:
   - name: build
     image: reg.int.it2000.com.cn/library/gradle:7.1-jdk11
     volumes:
-      - name: gradle
-        path: /home/gradle/.gradle
+#      - name: gradle
+#        path: /home/gradle/.gradle
       - name: certs
         path: /etc/ssl/certs
     commands:
@@ -97,6 +107,15 @@ steps:
     
     when:
       event: tag
+  - name: rebuild-cache
+      image: drillster/drone-volume-cache
+      settings:
+        rebuild: true
+        mount:
+          - /home/gradle/.gradle
+      volumes:
+        - name: cache
+          path: /cache
 
 volumes:
   - name: gradle
