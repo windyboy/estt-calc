@@ -14,20 +14,20 @@ clone:
 
 steps:
   - name: restore-cache
-      image: drillster/drone-volume-cache
-      settings:
-        restore: true
-        mount:
-          - /home/gradle/.gradle
-      volumes:
-        - name: cache
-          path: /cache
+    image: drillster/drone-volume-cache
+    settings:
+      restore: true
+      mount:
+        - /home/gradle/.gradle
+    volumes:
+      - name: cache
+        path: /cache
 
   - name: compile and test
     image: reg.int.it2000.com.cn/library/gradle:7.1-jdk11
     volumes:
-#      - name: gradle
-#        path: /home/gradle/.gradle
+      #      - name: gradle
+      #        path: /home/gradle/.gradle
       - name: certs
         path: /etc/ssl/certs
     environment:
@@ -40,8 +40,8 @@ steps:
   - name: build
     image: reg.int.it2000.com.cn/library/gradle:7.1-jdk11
     volumes:
-#      - name: gradle
-#        path: /home/gradle/.gradle
+      #      - name: gradle
+      #        path: /home/gradle/.gradle
       - name: certs
         path: /etc/ssl/certs
     commands:
@@ -100,22 +100,22 @@ steps:
       tags: [ "${DRONE_COMMIT_SHA:0:7}","latest" ]
       insecure: true
       auto_tag: true
-      username: 
+      username:
         from_secret: registry_user
       password:
         from_secret: registry_pass
-    
     when:
       event: tag
+
   - name: rebuild-cache
-      image: drillster/drone-volume-cache
-      settings:
-        rebuild: true
-        mount:
-          - /home/gradle/.gradle
-      volumes:
-        - name: cache
-          path: /cache
+    image: drillster/drone-volume-cache
+    settings:
+      rebuild: true
+      mount:
+        - /home/gradle/.gradle
+    volumes:
+      - name: cache
+        path: /cache
 
 volumes:
   - name: gradle
