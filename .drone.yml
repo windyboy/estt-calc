@@ -50,6 +50,16 @@ steps:
     #when:
     #  event: tag
 
+  - name: rebuild-cache
+    image: drillster/drone-volume-cache
+    settings:
+      rebuild: true
+      mount:
+        - /home/gradle/.gradle
+    volumes:
+      - name: cache
+        path: /opt/cache/gradle
+
   - name: release
     image: plugins/gitea-release
     volumes:
@@ -107,15 +117,7 @@ steps:
     when:
       event: tag
 
-  - name: rebuild-cache
-    image: drillster/drone-volume-cache
-    settings:
-      rebuild: true
-      mount:
-        - /home/gradle/.gradle
-    volumes:
-      - name: cache
-        path: /opt/cache/gradle
+
 
 volumes:
   - name: gradle
