@@ -26,8 +26,8 @@ steps:
   - name: compile and test
     image: reg.int.it2000.com.cn/library/gradle:7.1-jdk11
     volumes:
-      #      - name: gradle
-      #        path: /home/gradle/.gradle
+      - name: cache
+        path: /home/gradle/.gradle
       - name: certs
         path: /etc/ssl/certs
     environment:
@@ -40,8 +40,8 @@ steps:
   - name: build
     image: reg.int.it2000.com.cn/library/gradle:7.1-jdk11
     volumes:
-      #      - name: gradle
-      #        path: /home/gradle/.gradle
+      - name: cache
+        path: /home/gradle/.gradle
       - name: certs
         path: /etc/ssl/certs
     commands:
