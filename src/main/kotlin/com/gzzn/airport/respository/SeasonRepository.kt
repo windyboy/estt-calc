@@ -17,7 +17,7 @@ interface SeasonRepository {
 		where ACTIVESEASON_FLAG = :tag
 		"""
 	)
-	fun getFlightSeasonByTag(tag: Boolean): FlightSeason
+	fun getFlightSeasonByTag(tag: Boolean): FlightSeason?
 
 
 	@Query(

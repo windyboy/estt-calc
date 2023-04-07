@@ -25,7 +25,7 @@ class EsttService(
         private val log = LoggerFactory.getLogger("EsttService")
     }
 
-    fun getActiveSeason(): FlightSeason {
+    fun getActiveSeason(): FlightSeason? {
         val flightSeason = seasonRepository.getFlightSeasonByTag(true)
         log.info(" get active flight season $flightSeason")
         return flightSeason
@@ -41,7 +41,7 @@ class EsttService(
 
     fun getSeasonalFlight(flightNumber: String, flightDate: Date): SeasonalFlight? {
         val operationDay = "%${getOperationDay(flightDate)}%"
-        log.info("date: $operationDay , number: $flightNumber ")
+        log.info("operation day like: $operationDay , number: $flightNumber ")
         val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, operationDay)
         log.info(" get seasonal flight : $seasonalFlight ")
         return seasonalFlight
