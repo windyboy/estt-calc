@@ -19,21 +19,24 @@ class EsttController(private val esttService: EsttService) {
 	 * query active season
 	 */
 	@Get(uri = "/season")
-	fun getFlightSeason(): FlightSeason {
+	fun getFlightSeason(): FlightSeason? {
 		return esttService.getActiveSeason()
 	}
 
 	@Get(uri = "/seasonal/{flightNumber}/{flightDateString}")
 	fun getSeasonalFlight(flightNumber: String, flightDateString: String): SeasonalFlight? {
 		val flightDate = esttService.getFlightDate(flightDateString)
-		log.info("flightDate ", flightDate)
+		log.info("flightDate: $flightDate")
 		return esttService.getSeasonalFlight(flightNumber.uppercase(), flightDate)
 	}
 
 	@Get(uri = "/history/{flightNumber}/{flightDateString}")
 	fun getHistoryFlights(flightNumber: String, flightDateString: String): List<HistoricalFlight> {
+		log.info("get history of $flightNumber, $flightDateString")
 		val flightDate = esttService.getFlightDate(flightDateString)
-		return esttService.getHistoryFlights(flightNumber.uppercase(), flightDate)
+		val history = esttService.getHistoryFlights(flightNumber.uppercase(), flightDate)
+		log.info("history size: ${history.size}")
+		return history
 	}
 
 	@Get(uri = "/flyTime/{flightNumber}/{flightDateString}")

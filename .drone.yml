@@ -13,10 +13,20 @@ clone:
   skip_verify: true
 
 steps:
+  - name: restore-cache
+    image: drillster/drone-volume-cache
+    settings:
+      restore: true
+      mount:
+        - /home/gradle/.gradle
+    volumes:
+      - name: cache
+        path: /cache
+
   - name: compile and test
     image: reg.int.it2000.com.cn/library/gradle:7.1-jdk11
     volumes:
-      - name: gradle
+      - name: cache
         path: /home/gradle/.gradle
       - name: certs
         path: /etc/ssl/certs
@@ -30,7 +40,7 @@ steps:
   - name: build
     image: reg.int.it2000.com.cn/library/gradle:7.1-jdk11
     volumes:
-      - name: gradle
+      - name: cache
         path: /home/gradle/.gradle
       - name: certs
         path: /etc/ssl/certs
@@ -40,14 +50,24 @@ steps:
     #when:
     #  event: tag
 
+  - name: rebuild-cache
+    image: drillster/drone-volume-cache
+    settings:
+      rebuild: true
+      mount:
+        - /home/gradle/.gradle
+    volumes:
+      - name: cache
+        path: /cache
+
   - name: release
     image: plugins/gitea-release
     volumes:
       - name: certs
         path: /etc/ssl/certs
     settings:
-      title: 0.0.12
-      api_key: fe1e1a8dd77de7452a3f473984c7ac6fe6c5abaf
+      title: 0.0.17
+      api_key: 5e6aef8f90828ea3d9098a9f2967c14198aaf6d4
       base_url: https://gitea.int.it2000.com.cn
       files:
         - build/distributions/*
@@ -63,9 +83,11 @@ steps:
         path: /etc/ssl/certs
       - name: docker
         path: /var/run/docker.sock
+
     settings:
       repo: reg.int.it2000.com.cn/changde/estt-calc
       registry: reg.int.it2000.com.cn
+      insecure: true
       tags: [ "${DRONE_COMMIT_SHA:0:4}","latest" ]
       #      auth: ZmVuZ3poaXFpYW5nOmFkbWluZ3p6bg==
       username:
@@ -87,6 +109,7 @@ steps:
       repo: reg.int.it2000.com.cn/changde/estt-calc
       registry: reg.int.it2000.com.cn
       tags: [ "${DRONE_COMMIT_SHA:0:7}","latest" ]
+      insecure: true
       auto_tag: true
       username:
         from_secret: registry_user
@@ -95,10 +118,12 @@ steps:
     when:
       event: tag
 
+
+
 volumes:
-  - name: gradle
+  - name: cache
     host:
-      path: /opt/gradle
+      path: /opt/cache/gradle
   - name: certs
     host:
       path: /etc/ssl/certs

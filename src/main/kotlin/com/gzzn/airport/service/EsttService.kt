@@ -25,7 +25,7 @@ class EsttService(
         private val log = LoggerFactory.getLogger("EsttService")
     }
 
-    fun getActiveSeason(): FlightSeason {
+    fun getActiveSeason(): FlightSeason? {
         val flightSeason = seasonRepository.getFlightSeasonByTag(true)
         log.info(" get active flight season $flightSeason")
         return flightSeason
@@ -41,7 +41,7 @@ class EsttService(
 
     fun getSeasonalFlight(flightNumber: String, flightDate: Date): SeasonalFlight? {
         val operationDay = "%${getOperationDay(flightDate)}%"
-        log.info("date: $operationDay , number: $flightNumber ")
+        log.info("operation day like: $operationDay , number: $flightNumber ")
         val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, operationDay)
         log.info(" get seasonal flight : $seasonalFlight ")
         return seasonalFlight
@@ -86,7 +86,7 @@ class EsttService(
         val actualFlyTime = getMinutes(historyFlight.preActualTime, historyFlight.actualTime)
         val result = seasonalFlight.operationDays.contains(operationDay.toString())
                 && (historyFlight.preActualTime < historyFlight.actualTime)
-                && abs(actualFlyTime - seasonalFlight.flyingTime) < maxHistoryDelay
+                && abs(actualFlyTime - seasonalFlight.flyingTime!!) < maxHistoryDelay
         if (log.isDebugEnabled) {
             log.debug("history: $historyFlight , include :$result")
         }
@@ -129,7 +129,7 @@ class EsttService(
             }
             val flyingTimeResponse = FlyingTimeResponse(
                 flightNumber,
-                flightDate, context.seasonalFlight.flyingTime,
+                flightDate, context.seasonalFlight.flyingTime!!,
                 history = false, seasonal = true, message = "seasonal flight flying time"
             )
             log.info(" use seasonal flight flying time $flyingTimeResponse")
