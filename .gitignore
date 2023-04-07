@@ -13,5 +13,6 @@ logs/
 .settings
 .classpath
 .vscode
+.idea
 bin
 logs
