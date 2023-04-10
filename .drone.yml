@@ -65,16 +65,14 @@ steps:
     volumes:
       - name: certs
         path: /etc/ssl/certs/ca-certificates.crt
-
     settings:
-      title: 0.0.18
+      title: 0.0.17
       api_key: 5e6aef8f90828ea3d9098a9f2967c14198aaf6d4
       base_url: https://gitea.int.it2000.com.cn
       files:
         - build/distributions/*
       checksum:
         - sha256
-      #insecure: true
     when:
       event: tag
 
@@ -85,7 +83,6 @@ steps:
         path: /etc/ssl/certs/ca-certificates.crt
       - name: docker
         path: /var/run/docker.sock
-      - /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem:/etc/ssl/certs/ca-certificates.crt:ro
 
     settings:
       repo: reg.int.it2000.com.cn/changde/estt-calc
