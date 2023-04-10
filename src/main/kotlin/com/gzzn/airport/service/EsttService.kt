@@ -157,7 +157,7 @@ class EsttService(
             log.info(" calculate by history : $flyingTimeResponse")
 
         } else {
-            log.warn("history flight is not enough and can't find seasonal flight $flightNumber $flightDate")
+            log.warn("history flight (${qualifiedFlights.size}) is not enough and can't find seasonal flight $flightNumber $flightDate")
             flyingTimeResponse = FlyingTimeResponse(
                 flightNumber,
                 flightDate, seasonalFlight.flyingTime ?: 0,
