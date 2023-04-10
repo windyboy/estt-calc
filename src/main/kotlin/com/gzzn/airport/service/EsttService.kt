@@ -12,6 +12,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
 
+
 @Singleton
 class EsttService(
     private val seasonRepository: SeasonRepository,
@@ -25,6 +26,10 @@ class EsttService(
         private val log = LoggerFactory.getLogger("EsttService")
     }
 
+    /**
+     * get active flight season
+     * @return current flight season
+     */
     fun getActiveSeason(): FlightSeason? {
         val flightSeason = seasonRepository.getFlightSeasonByTag(true)
         log.info(" get active flight season $flightSeason")
@@ -77,6 +82,7 @@ class EsttService(
 
     }
 
+
     private fun isHistoryFlight(seasonalFlight: SeasonalFlight?, historyFlight: HistoricalFlight): Boolean {
         if (seasonalFlight == null) {
             log.warn("seasonal flight is null !")
@@ -94,14 +100,42 @@ class EsttService(
     }
 
 
+    /**
+     * calculate the flying time of the departure flight with flight number and flight date
+     *
+     * 1. get seasonal flight with flight number and flight date
+     * 1.1 if no seasonal flight (seasonal plan not active ?), return (fly-time=0)
+     * 2. get flight history of this seasonal flight
+     * 3. get qualified history flights
+     * 4. if there is enough historical flight, calculate the average fly-time ,return
+     * 4.1 return seasonal flight fly-time
+     *
+     * @param flightNumber flight number
+     * @param flightDate flight date
+     * @return flying time response
+     *
+     */
     fun calculate(flightNumber: String, flightDate: Date): FlyingTimeResponse {
         log.info("calculate flying time for $flightNumber on $flightDate")
         val seasonalFlight = getSeasonalFlight(flightNumber, flightDate)
-        val context = FlyingTimeContext(
-            seasonalFlight = seasonalFlight,
-            historyFlights = getHistoryFlightsWithSeasonFlight(seasonalFlight, flightDate)
-        )
-        val qualifiedFlights = getQualifiedHistoryFlights(context)
+        if (seasonalFlight == null) {
+            log.warn("no seasonal flight found for $flightNumber on $flightDate")
+            return FlyingTimeResponse(
+                flightNumber,
+                flightDate,
+                0,
+                history = false,
+                seasonal = false,
+                message = "no seasonal flight"
+            )
+        }
+//        val context = FlyingTimeContext(
+//            seasonalFlight = seasonalFlight,
+//            historyFlights = getHistoryFlightsWithSeasonFlight(seasonalFlight, flightDate)
+//        )
+        val historyFlights = getHistoryFlightsWithSeasonFlight(seasonalFlight, flightDate)
+        val qualifiedFlights = getQualifiedHistoryFlights(historyFlights)
+        val flyingTimeResponse: FlyingTimeResponse
         if (log.isDebugEnabled) {
             log.debug("get qualified history flight : ${qualifiedFlights.size}")
         }
@@ -113,7 +147,7 @@ class EsttService(
                 .take(minHistoryFlight)
                 .sumOf { getMinutes(it.preActualTime, it.actualTime) }
             val average = totalFlyingTime / minHistoryFlight
-            val flyingTimeResponse = FlyingTimeResponse(
+            flyingTimeResponse = FlyingTimeResponse(
                 flightNumber, flightDate,
                 average,
                 history = true,
@@ -121,35 +155,29 @@ class EsttService(
                 message = "calculate by $minHistoryFlight history"
             )
             log.info(" calculate by history : $flyingTimeResponse")
-            return flyingTimeResponse
-        }
-        if (context.seasonalFlight != null) {
-            if (log.isDebugEnabled) {
-                log.debug("history is not enough, get flying time by seasonal flight $seasonalFlight")
-            }
-            val flyingTimeResponse = FlyingTimeResponse(
+
+        } else {
+            log.warn("history flight is not enough and can't find seasonal flight $flightNumber $flightDate")
+            flyingTimeResponse = FlyingTimeResponse(
                 flightNumber,
-                flightDate, context.seasonalFlight.flyingTime!!,
+                flightDate, seasonalFlight.flyingTime ?: 0,
                 history = false, seasonal = true, message = "seasonal flight flying time"
             )
             log.info(" use seasonal flight flying time $flyingTimeResponse")
-            return flyingTimeResponse
         }
-        log.warn("history flight is not enough and can't find seasonal flight $flightNumber $flightDate")
-        return FlyingTimeResponse(
-            flightNumber,
-            flightDate,
-            0,
-            history = false,
-            seasonal = false,
-            message = "no seasonal flight"
-        )
-
+        return flyingTimeResponse
     }
 
 
-    private fun getQualifiedHistoryFlights(flyingTimeContext: FlyingTimeContext): List<HistoricalFlight> {
-        return flyingTimeContext.historyFlights.asSequence()
+//    private fun getQualifiedHistoryFlights(flyingTimeContext: FlyingTimeContext): List<HistoricalFlight> {
+//        return flyingTimeContext.historyFlights.asSequence()
+//            .sortedByDescending { it.scheduledTime }
+//            .filter { checkFlightTooMuchDelay(it) }
+//            .toList()
+//    }
+
+    private fun getQualifiedHistoryFlights(historyFlights: List<HistoricalFlight>): List<HistoricalFlight> {
+        return historyFlights.asSequence()
             .sortedByDescending { it.scheduledTime }
             .filter { checkFlightTooMuchDelay(it) }
             .toList()
