@@ -29,7 +29,7 @@ steps:
       - name: cache
         path: /home/gradle/.gradle
       - name: certs
-        path: /etc/ssl/certs
+        path: /etc/ssl/certs/ca-certificates.crt
     environment:
       ORACLE_USER: cdjc
       ORACLE_PASS: cdjc
@@ -43,7 +43,7 @@ steps:
       - name: cache
         path: /home/gradle/.gradle
       - name: certs
-        path: /etc/ssl/certs
+        path: /etc/ssl/certs/ca-certificates.crt
     commands:
       - gradle build
       - gradle check
@@ -63,9 +63,9 @@ steps:
   - name: release
     image: plugins/gitea-release
     volumes:
-      #- name: certs
-      #  path: /etc/ssl/certs
-      - /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem:/etc/ssl/certs/ca-certificates.crt:ro
+      - name: certs
+        path: /etc/ssl/certs/ca-certificates.crt
+
     settings:
       title: 0.0.18
       api_key: 5e6aef8f90828ea3d9098a9f2967c14198aaf6d4
@@ -82,7 +82,7 @@ steps:
     image: plugins/docker
     volumes:
       - name: certs
-        path: /etc/ssl/certs
+        path: /etc/ssl/certs/ca-certificates.crt
       - name: docker
         path: /var/run/docker.sock
       - /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem:/etc/ssl/certs/ca-certificates.crt:ro
@@ -104,9 +104,8 @@ steps:
   - name: release-publish
     image: plugins/docker
     volumes:
-      - /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem:/etc/ssl/certs/ca-certificates.crt:ro
-#      - name: certs
-#        path: /etc/ssl/certs
+      - name: certs
+        path: /etc/ssl/certs/ca-certificates.crt
       - name: docker
         path: /var/run/docker.sock
     settings:
@@ -130,7 +129,7 @@ volumes:
       path: /opt/cache/gradle
   - name: certs
     host:
-      path: /etc/ssl/certs
+      path: /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
   - name: docker
     host:
       path: /var/run/docker.sock
