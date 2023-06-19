@@ -21,7 +21,7 @@ steps:
         - /home/gradle/.gradle
     volumes:
       - name: cache
-        path: /cache
+        path: /gradle
 
   - name: compile and test
     image: reg.int.it2000.com.cn/library/gradle:7.1-jdk11
@@ -58,7 +58,7 @@ steps:
         - /home/gradle/.gradle
     volumes:
       - name: cache
-        path: /cache
+        path: /gradle
 
   - name: release
     image: plugins/gitea-release
