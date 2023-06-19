@@ -7,4 +7,4 @@ import java.util.*
 data class FlightSeason(val seasonId: Long,
 						val seasonName: String,
 						val seasonStart: Date,
-						val seasonEnd: Date) {}
+						val seasonEnd: Date)
