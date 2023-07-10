@@ -9,6 +9,8 @@ import org.joda.time.DateTime
 import org.joda.time.Minutes
 import org.slf4j.LoggerFactory
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.*
 import kotlin.math.abs
 
@@ -66,7 +68,7 @@ class EsttService(
         }
 
         val seasonStart = getHistoryStartDate(seasonalFlight.seasonStart)
-        log.info("season : ${seasonalFlight.seasonStart} , historical flight from $seasonStart")
+        log.info("season : ${seasonalFlight.seasonStart} , historical flight from ${toLocalDate(seasonStart)}")
         val historyFlights = historyFlightRepository.getArrivalFlight(
             seasonalFlight.flightNumber,
             seasonStart,
@@ -123,7 +125,7 @@ class EsttService(
      * 7. 返回计算出的 FlyingTimeResponse。
      */
     fun calculate(flightNumber: String, flightDate: Date): FlyingTimeResponse {
-        log.info("Calculating flying time for $flightNumber on $flightDate")
+        log.info("Calculating flying time for $flightNumber on ${toLocalDate(flightDate)}")
 
         val seasonalFlight = getSeasonalFlight(flightNumber, flightDate)
         val flyingTime: Int
@@ -228,6 +230,12 @@ class EsttService(
      */
     private fun getHistoryStartDate(seasonStart: Date): Date {
         return DateTime(seasonStart).minusDays(startMinus).toDate()
+    }
+
+    private fun toLocalDate(dateToConvert: Date): LocalDate {
+        return dateToConvert.toInstant()
+            .atZone(ZoneId.systemDefault())// need to check default zone
+            .toLocalDate();
     }
 
 }
