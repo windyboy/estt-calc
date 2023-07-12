@@ -18,10 +18,12 @@ steps:
     settings:
       restore: true
       mount:
-        - /home/gradle/.gradle
+      - /home/gradle/.gradle
     volumes:
       - name: cache
-        path: /opt/cache/gradle
+        path: /cache
+
+    
 
   - name: compile and test
     image: reg.int.it2000.com.cn/library/gradle:7.6-jdk17
@@ -58,7 +60,7 @@ steps:
         - /home/gradle/.gradle
     volumes:
       - name: cache
-        path: /opt/cache/gradle
+        path: /cache
 
   - name: release
     image: plugins/gitea-release
