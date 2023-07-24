@@ -4,6 +4,7 @@ import com.gzzn.airport.model.HistoricalFlight
 import io.micronaut.data.annotation.Query
 import io.micronaut.data.jdbc.annotation.JdbcRepository
 import io.micronaut.data.model.query.builder.sql.Dialect
+import java.time.LocalDate
 import java.util.*
 
 
@@ -25,5 +26,5 @@ where
   and :endDate order by flight_date desc
   """
 	)
-	fun getArrivalFlight(flightNumber: String, startDate: Date, endDate: Date): List<HistoricalFlight>
+	fun getArrivalFlight(flightNumber: String, startDate: LocalDate, endDate: LocalDate): List<HistoricalFlight>
 }

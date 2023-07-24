@@ -1,10 +1,14 @@
 package com.gzzn.airport.model
 
 import io.micronaut.data.annotation.MappedEntity
-import java.util.*
+import io.micronaut.serde.annotation.Serdeable
+//import java.sql.*
+import java.time.LocalDate
+//import java.time.LocalDateTime
 
+@Serdeable
 @MappedEntity
 data class FlightSeason(val seasonId: Long,
 						val seasonName: String,
-						val seasonStart: Date,
-						val seasonEnd: Date)
+						val seasonStart: LocalDate,
+						val seasonEnd: LocalDate)
