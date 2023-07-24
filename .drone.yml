@@ -26,7 +26,7 @@ steps:
     
 
   - name: compile and test
-    image: reg.int.it2000.com.cn/library/gradle:7.6-jdk17
+    image: reg.int.it2000.com.cn/library/gradle:8.1-jdk17
     volumes:
       - name: cache
         path: /home/gradle/.gradle
@@ -40,7 +40,7 @@ steps:
       - gradle test
 
   - name: build
-    image: reg.int.it2000.com.cn/library/gradle:7.6-jdk17
+    image: reg.int.it2000.com.cn/library/gradle:8.1-jdk17
     volumes:
       - name: cache
         path: /home/gradle/.gradle
