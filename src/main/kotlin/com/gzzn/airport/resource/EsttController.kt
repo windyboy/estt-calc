@@ -28,12 +28,12 @@ class EsttController(private val esttService: EsttService) {
 //		}
 		return activeSeason
 	}
-	fun toLocalDate(dateToConvert: Date): LocalDate {
-		log.info("dateToConvert: ${dateToConvert.toInstant()}")
-		return dateToConvert.toInstant()
-			.atZone(ZoneId.systemDefault())// need to check default zone
-			.toLocalDate();
-	}
+//	fun toLocalDate(dateToConvert: Date): LocalDate {
+//		log.info("dateToConvert: ${dateToConvert.toInstant()}")
+//		return dateToConvert.toInstant()
+//			.atZone(ZoneId.systemDefault())// need to check default zone
+//			.toLocalDate();
+//	}
 
 //	@Get(uri = "/date")
 //	fun date(): FlightSeason {
