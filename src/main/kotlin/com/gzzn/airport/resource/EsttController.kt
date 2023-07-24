@@ -1,13 +1,13 @@
 package com.gzzn.airport.resource
 
-import com.gzzn.airport.model.FlightSeason
-import com.gzzn.airport.model.FlyingTimeResponse
-import com.gzzn.airport.model.HistoricalFlight
-import com.gzzn.airport.model.SeasonalFlight
+import com.gzzn.airport.model.*
 import com.gzzn.airport.service.EsttService
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
 import org.slf4j.LoggerFactory
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.Date
 
 @Controller(value = "/estt")
 class EsttController(private val esttService: EsttService) {
@@ -20,8 +20,25 @@ class EsttController(private val esttService: EsttService) {
 	 */
 	@Get(uri = "/season")
 	fun getFlightSeason(): FlightSeason? {
-		return esttService.getActiveSeason()
+		val activeSeason = esttService.getActiveSeason()
+//		if (activeSeason != null) {
+//			val seasonStart = toLocalDate(activeSeason.seasonStart)
+//			val seasonEnd = toLocalDate(activeSeason.seasonEnd)
+//			return Season(activeSeason.seasonId, activeSeason.seasonName, seasonStart, seasonEnd)
+//		}
+		return activeSeason
 	}
+	fun toLocalDate(dateToConvert: Date): LocalDate {
+		log.info("dateToConvert: ${dateToConvert.toInstant()}")
+		return dateToConvert.toInstant()
+			.atZone(ZoneId.systemDefault())// need to check default zone
+			.toLocalDate();
+	}
+
+//	@Get(uri = "/date")
+//	fun date(): FlightSeason {
+//		return FlightSeason(1,"test-season", java.sql.Date(), Date())
+//	}
 
 	@Get(uri = "/seasonal/{flightNumber}/{flightDateString}")
 	fun getSeasonalFlight(flightNumber: String, flightDateString: String): SeasonalFlight? {
