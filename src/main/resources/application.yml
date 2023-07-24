@@ -1,6 +1,8 @@
 micronaut:
   application:
     name: estt-calc
+  serde:
+    write-dates-as-timestamps: false
 datasources:
   gzzn:
     url: "jdbc:oracle:thin:@${ORACLE_HOST:bj024.int.it2000.com.cn}:${ORACLE_PORT:1521}:${ORACLE_SID:orcl}"
