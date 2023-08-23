@@ -14,5 +14,6 @@ logs/
 .classpath
 .vscode
 .idea
+.micronaut
 bin
 logs
