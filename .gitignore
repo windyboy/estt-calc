@@ -13,7 +13,6 @@ logs/
 .settings
 .classpath
 .vscode
-.idea
 .micronaut
 bin
 logs
