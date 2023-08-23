@@ -1,6 +1,9 @@
 package com.gzzn.airport.service
 
-import com.gzzn.airport.model.*
+import com.gzzn.airport.model.FlightSeason
+import com.gzzn.airport.model.FlyingTimeResponse
+import com.gzzn.airport.model.HistoricalFlight
+import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.respository.HistoryFlightRepository
 import com.gzzn.airport.respository.SeasonRepository
 import io.micronaut.context.annotation.Value
@@ -9,8 +12,8 @@ import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter import java.util.*
-import kotlin.math.abs import kotlin.math.abs
+import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 
 
 @Singleton
