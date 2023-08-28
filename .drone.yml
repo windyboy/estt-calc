@@ -29,7 +29,7 @@ steps:
     image: reg.int.it2000.com.cn/library/gradle:8.1-jdk17
     volumes:
       - name: cache
-        path: /home/gradle/.gradle
+        path: /root/.gradle
       - name: certs
         path: /etc/ssl/certs/ca-certificates.crt
     environment:
@@ -43,7 +43,7 @@ steps:
     image: reg.int.it2000.com.cn/library/gradle:8.1-jdk17
     volumes:
       - name: cache
-        path: /home/gradle/.gradle
+        path: /root/.gradle
       - name: certs
         path: /etc/ssl/certs/ca-certificates.crt
     commands:
@@ -57,7 +57,7 @@ steps:
     settings:
       rebuild: true
       mount:
-        - /home/gradle/.gradle
+        - /root/.gradle
     volumes:
       - name: cache
         path: /cache
