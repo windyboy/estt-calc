@@ -20,7 +20,8 @@ steps:
       mount:
       - /home/gradle/.gradle
     volumes:
-      - /opt/cache/gradle:/cache
+      - name: cache
+        path: /home/gradle/.gradle
 
     
 
@@ -58,7 +59,8 @@ steps:
       mount:
         - /home/gradle/.gradle
     volumes:
-      - /opt/cache/gradle:/cache
+      - name: cache
+        path: /home/gradle/.gradle
 
   - name: release
     image: plugins/gitea-release
