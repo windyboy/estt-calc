@@ -18,7 +18,7 @@ steps:
     settings:
       restore: true
       mount:
-      - /home/gradle/.gradle
+      - /root/.gradle
     volumes:
       - name: cache
         path: /cache
