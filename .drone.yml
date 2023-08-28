@@ -18,10 +18,9 @@ steps:
     settings:
       restore: true
       mount:
-      - /opt/cache/gradle
+      - /home/gradle/.gradle
     volumes:
-      - name: cache
-        path: /home/gradle/.gradle
+      - /opt/cache/gradle:/cache
 
     
 
@@ -57,10 +56,9 @@ steps:
     settings:
       rebuild: true
       mount:
-        - /opt/cache/gradle
+        - /home/gradle/.gradle
     volumes:
-      - name: cache
-        path: /home/gradle/.gradle
+      - /opt/cache/gradle:/cache
 
   - name: release
     image: plugins/gitea-release
