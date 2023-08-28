@@ -18,10 +18,10 @@ steps:
     settings:
       restore: true
       mount:
-      - /root/.gradle
+      - /opt/cache/gradle
     volumes:
       - name: cache
-        path: /cache
+        path: /home/gradle/.gradle
 
     
 
@@ -29,7 +29,7 @@ steps:
     image: reg.int.it2000.com.cn/library/gradle:8.1-jdk17
     volumes:
       - name: cache
-        path: /root/.gradle
+        path: /home/gradle/.gradle
       - name: certs
         path: /etc/ssl/certs/ca-certificates.crt
     environment:
@@ -43,7 +43,7 @@ steps:
     image: reg.int.it2000.com.cn/library/gradle:8.1-jdk17
     volumes:
       - name: cache
-        path: /root/.gradle
+        path: /home/gradle/.gradle
       - name: certs
         path: /etc/ssl/certs/ca-certificates.crt
     commands:
@@ -57,10 +57,10 @@ steps:
     settings:
       rebuild: true
       mount:
-        - /root/.gradle
+        - /opt/cache/gradle
     volumes:
       - name: cache
-        path: /cache
+        path: /home/gradle/.gradle
 
   - name: release
     image: plugins/gitea-release
