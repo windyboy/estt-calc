@@ -51,7 +51,6 @@ dependencies {
 }
 
 
-
 application {
     mainClass.set("com.gzzn.airport.ApplicationKt")
 }
