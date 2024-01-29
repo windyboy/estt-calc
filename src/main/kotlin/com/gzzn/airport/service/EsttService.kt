@@ -132,7 +132,7 @@ class EsttService(
      * 6. 如果合格航班的数量小于 minHistoryFlight，则使用季节性航班数据确定飞行时间。
      * 7. 返回计算出的 FlyingTimeResponse。
      */
-    fun calculate(flightNumber: String, flightDate: LocalDate): FlyingTimeResponse {
+    fun calculate(flightNumber: String, flightDate: LocalDate): FlyingTimeResponse  {
         log.info("Calculating flying time for $flightNumber on $flightDate")
 
         val seasonalFlight = getSeasonalFlight(flightNumber, flightDate)
@@ -145,8 +145,10 @@ class EsttService(
             )
         }
 
+
         val historyFlights = getHistoryFlightsWithSeasonFlight(seasonalFlight, flightDate)
         val qualifiedFlights = getQualifiedHistoryFlights(historyFlights)
+    
 
         val enoughHistoryFlights = qualifiedFlights.size >= minHistoryFlight
         log.debug("Enough history flights: ${qualifiedFlights.size}")
