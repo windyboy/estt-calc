@@ -1,7 +1,5 @@
-[![Build Status](http://d2.int.it2000.com.cn/api/badges/thyia/estt-calc-kotlin/status.svg)](http://d2.int.it2000.com.cn/thyia/estt-calc-kotlin)
-
 # 到港航班预计时间计算
-
+[![Build Status](http://d2.int.it2000.com.cn/api/badges/thyia/estt-calc-kotlin/status.svg)](http://d2.int.it2000.com.cn/thyia/estt-calc-kotlin)
 
 
 
@@ -64,7 +62,7 @@ GET /estt/seasonal/航班号/航班日期
 
 GET /estt/history/航班号/航班日期
 
-如： /estt/seasonal/mu9941/210329, 查询2021年3月29日飞来的mu9941航班对应的历史飞行记录
+如： /estt/history/mu9941/210329, 查询2021年3月29日飞来的mu9941航班对应的历史飞行记录
 
 4. 查询飞行时长（核心功能）
 
