@@ -18,24 +18,8 @@ class EsttController(private val esttService: EsttService) {
 	@Get(uri = "/season")
 	fun getFlightSeason(): FlightSeason? {
 		val activeSeason = esttService.getActiveSeason()
-//		if (activeSeason != null) {
-//			val seasonStart = toLocalDate(activeSeason.seasonStart)
-//			val seasonEnd = toLocalDate(activeSeason.seasonEnd)
-//			return Season(activeSeason.seasonId, activeSeason.seasonName, seasonStart, seasonEnd)
-//		}
 		return activeSeason
 	}
-//	fun toLocalDate(dateToConvert: Date): LocalDate {
-//		log.info("dateToConvert: ${dateToConvert.toInstant()}")
-//		return dateToConvert.toInstant()
-//			.atZone(ZoneId.systemDefault())// need to check default zone
-//			.toLocalDate();
-//	}
-
-//	@Get(uri = "/date")
-//	fun date(): FlightSeason {
-//		return FlightSeason(1,"test-season", java.sql.Date(), Date())
-//	}
 
 	@Get(uri = "/seasonal/{flightNumber}/{flightDateString}")
 	fun getSeasonalFlight(flightNumber: String, flightDateString: String): SeasonalFlight? {
