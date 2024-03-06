@@ -12,7 +12,11 @@ version "${appVersion}"
 group "com.gzzn.airport"
 
 repositories {
-    maven { url "https://repo.int.it2000.com.cn/repository/internal/" }
+//    maven { url "https://repo.int.it2000.com.cn/releases" }
+//    maven {
+//        name = "reposilite"
+//        url = uri("https://repo.int.it2000.com.cn/releases")
+//    }
     mavenCentral()
 }
 dependencies {
@@ -44,7 +48,7 @@ application {
     mainClass.set("com.gzzn.airport.ApplicationKt")
 }
 java {
-    sourceCompatibility = JavaVersion.toVersion("20")
+    sourceCompatibility = JavaVersion.VERSION_17
 }
 
 
