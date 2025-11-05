@@ -25,7 +25,7 @@ open class EsttService(
     @Value("\${estt.calculation.min-history-flight:20}") val minHistoryFlight: Int,
     @Value("\${estt.calculation.date-format}") val dateFormat: String,
     @Value("\${estt.calculation.history-start-offset-days}") val historyStartOffsetDays: Long,
-    @Value("\${estt.calculation.max-history-rows:100}") val maxHistoryRows: Int
+    @Value("\${estt.calculation.max-history-rows:300}") val maxHistoryRows: Int
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(EsttService::class.java)

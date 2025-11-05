@@ -29,6 +29,6 @@ select * from (
 ) where ROWNUM <= :maxRows
   """
     )
-    fun getArrivalFlight(flightNumber: String, startDate: LocalDate, endDate: LocalDate, maxRows: Int = 100): List<HistoricalFlight>
+    fun getArrivalFlight(flightNumber: String, startDate: LocalDate, endDate: LocalDate, maxRows: Int = 300): List<HistoricalFlight>
 }
 

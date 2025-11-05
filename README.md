@@ -142,7 +142,7 @@ Configuration can be set via environment variables or the `application.yml` file
 | `MAX_DELAY` | 最大延误时间（分钟）(Max delay in minutes) | Integer | `120` |
 | `MIN_HISTORY` | 最少历史航班数 (Min historical flights) | Integer | `20` |
 | `START_MINUS` | 历史查询起始偏移天数 (History start offset days) | Integer | `60` |
-| `MAX_HISTORY_ROWS` | 历史航班查询最大数量 (Max history rows to fetch) | Integer | `100` |
+| `MAX_HISTORY_ROWS` | 历史航班查询最大数量 (Max history rows to fetch) | Integer | `300` |
 | `FLIGHT_NUMBER_PATTERN` | 航班号验证正则 (Flight number validation regex) | Regex | `^[A-Z]{2}[0-9]{3,4}$` |
 
 ### 配置文件示例 (Configuration Example)
@@ -168,7 +168,7 @@ estt:
     min-history-flight: 20
     date-format: 'yyMMdd'
     history-start-offset-days: 60
-    max-history-rows: 100
+    max-history-rows: 300
   validation:
     flight-number-pattern: '^[A-Z]{2}[0-9]{3,4}$'
 ```
@@ -376,12 +376,23 @@ Configure log levels in `logback.xml` or via environment variables.
 
 ## 版本历史 (Version History)
 
-- **v0.0.21** (Current)
-  - Upgraded to Java 21 and Micronaut 4.3.7
-  - Added comprehensive testing
-  - Implemented caching and performance optimizations
-  - Added OpenAPI documentation
-  - Enhanced security and error handling
+- **v0.1.0** (Current - 2025-01-08)
+  - 🚀 Upgraded to Java 21 and Micronaut 4.6.1
+  - 🔧 Upgraded to Kotlin 1.9.25
+  - 🔒 Enhanced security: removed default passwords, updated Docker to Eclipse Temurin 21
+  - ✅ Added comprehensive test suite (service, controller, repository, integration)
+  - ⚡ Performance optimizations: caching, query limits (max-history-rows: 300)
+  - 📚 Added OpenAPI/Swagger documentation
+  - 🛡️ Improved error handling with proper HTTP status codes
+  - 🎯 Added input validation and flight number regex configuration
+  - 📊 Added health checks and Prometheus metrics
+  - 🔧 Configurable parameters: max-history-rows, flight-number-pattern
+  - 🐛 Fixed operation day matching bug
+  - 📝 Comprehensive README update
+
+- **v0.0.21** (Legacy)
+  - Initial stable release
+  - Basic flight time calculation functionality
 
 ## 维护者 (Maintainers)
 
