@@ -1,0 +1,33 @@
+micronaut:
+  application:
+    name: estt-calc
+  serde:
+    write-dates-as-timestamps: false
+  caches:
+    active-season:
+      expire-after-write: 1h
+
+datasources:
+  gzzn:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=Oracle;INIT=RUNSCRIPT FROM 'classpath:schema.sql'
+    driverClassName: org.h2.Driver
+    username: sa
+    password: ''
+    dialect: H2
+
+estt:
+  calculation:
+    max-history-delay: 120
+    min-history-flight: 20
+    date-format: 'yyMMdd'
+    history-start-offset-days: 60
+    max-history-rows: 300
+  validation:
+    flight-number-pattern: '^[A-Z]{2}[0-9]{3,4}$'
+
+endpoints:
+  health:
+    enabled: true
+  info:
+    enabled: true
+
