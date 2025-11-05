@@ -7,9 +7,11 @@ import com.gzzn.airport.service.EsttService
 import io.micrometer.core.annotation.Counted
 import io.micrometer.core.annotation.Timed
 import io.micronaut.context.annotation.Value
+// import io.github.resilience4j.ratelimiter.annotation.RateLimiter
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
+import io.micronaut.http.annotation.QueryValue
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
@@ -100,12 +102,13 @@ open class EsttController(
 		)
 	}
 
-	@Get(uri = "/history/{flightNumber}/{flightDateString}")
+	@Get(uri = "/history/{flightNumber}/{flightDateString}{?limit,offset}")
 	@Timed(value = "estt.api.history", description = "Get flight history API")
 	@Counted(value = "estt.api.history.calls", description = "Number of history queries")
 	@Operation(
 		summary = "Get historical flights",
-		description = "Returns historical flight records matching the operational day and date criteria"
+		description = "Returns historical flight records matching the operational day and date criteria. " +
+			"Supports optional pagination via limit and offset query parameters."
 	)
 	@ApiResponses(
 		ApiResponse(responseCode = "200", description = "History retrieved successfully"),
@@ -116,7 +119,11 @@ open class EsttController(
 		@Parameter(description = "Flight number (e.g., MU9941)", example = "MU9941", required = true)
 		flightNumber: String, 
 		@Parameter(description = "Flight date in format yyMMdd (e.g., 211231)", example = "211231", required = true)
-		flightDateString: String
+		flightDateString: String,
+		@Parameter(description = "Maximum number of results to return", example = "100")
+		@QueryValue(defaultValue = "100") limit: Int,
+		@Parameter(description = "Number of results to skip", example = "0")
+		@QueryValue(defaultValue = "0") offset: Int
 	): HttpResponse<*> {
 		val normalizedFlightNumber = flightNumber.uppercase()
 		validateFlightNumber(normalizedFlightNumber)
@@ -127,7 +134,9 @@ open class EsttController(
 		return esttService.getHistoryFlights(normalizedFlightNumber, flightDate).fold(
 			onSuccess = { history -> 
 				log.debug("history size: ${history.size}")
-				HttpResponse.ok(history)
+				// Apply pagination
+				val paginatedHistory = history.drop(offset).take(limit)
+				HttpResponse.ok(paginatedHistory)
 			},
 			onFailure = { e -> 
 				log.error("Failed to get history flights for $normalizedFlightNumber", e)
@@ -141,6 +150,7 @@ open class EsttController(
 	@Get(uri = "/flyTime/{flightNumber}/{flightDateString}")
 	@Timed(value = "estt.api.calculate", description = "Flying time calculation API")
 	@Counted(value = "estt.api.calculate.calls", description = "Number of calculation requests")
+	// @RateLimiter(name = "calculate-rate-limiter")  // TODO: Enable when resilience4j is properly configured
 	@Operation(
 		summary = "Calculate flying time",
 		description = "Calculates estimated flying time based on historical data or seasonal schedule. " +

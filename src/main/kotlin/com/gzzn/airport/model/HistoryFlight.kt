@@ -9,7 +9,7 @@ import java.time.LocalDateTime
 @MappedEntity
 data class HistoricalFlight(
 	val flightDate: LocalDate,
-	val preActualTime: LocalDateTime,
+	val previousDepartureTime: LocalDateTime,
 	val actualTime: LocalDateTime,
 	val scheduledTime: LocalDateTime
 )

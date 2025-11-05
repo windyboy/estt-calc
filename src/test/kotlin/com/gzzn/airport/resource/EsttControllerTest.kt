@@ -105,7 +105,7 @@ class EsttControllerTest : DescribeSpec({
             every { esttService.parseFlightDate("211231") } returns LocalDate.of(2021, 12, 31)
             every { esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31)) } returns Result.success(emptyList())
 
-            val response = controller.getHistoryFlights("MU9941", "211231")
+            val response = controller.getHistoryFlights("MU9941", "211231", 100, 0)
 
             response.status shouldBe HttpStatus.OK
             response.body() shouldBe emptyList<Any>()
@@ -116,7 +116,7 @@ class EsttControllerTest : DescribeSpec({
             every { esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31)) } returns 
                 Result.failure(RuntimeException("DB error"))
 
-            val response = controller.getHistoryFlights("MU9941", "211231")
+            val response = controller.getHistoryFlights("MU9941", "211231", 100, 0)
 
             response.status shouldBe HttpStatus.INTERNAL_SERVER_ERROR
         }

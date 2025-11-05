@@ -50,7 +50,7 @@ class ModelTest : DescribeSpec({
             )
 
             flight.flightDate shouldBe LocalDate.of(2021, 12, 31)
-            flight.preActualTime shouldBe LocalDateTime.of(2021, 12, 31, 10, 0)
+            flight.previousDepartureTime shouldBe LocalDateTime.of(2021, 12, 31, 10, 0)
             flight.actualTime shouldBe LocalDateTime.of(2021, 12, 31, 11, 30)
             flight.scheduledTime shouldBe LocalDateTime.of(2021, 12, 31, 11, 0)
         }

@@ -4,6 +4,7 @@ import com.gzzn.airport.model.HistoricalFlight
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.HistoryFlightRepository
 import com.gzzn.airport.repository.SeasonRepository
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
@@ -69,16 +70,16 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
             result.getOrNull()!!.flyingTime shouldBe 90L
         }
 
-        it("should handle null seasonal flying time") {
-            val seasonalFlight = SeasonalFlight("MU9941", "1234567", null, LocalDate.of(2021, 3, 28))
+        it("should reject zero seasonal flying time") {
+            val seasonalFlight = SeasonalFlight("MU9941", "1234567", 0L, LocalDate.of(2021, 3, 28))
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns seasonalFlight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns emptyList()
 
-            val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
-            
-            result.isSuccess.shouldBeTrue()
-            result.getOrNull()!!.flyingTime shouldBe 0L
+            val exception = shouldThrow<IllegalArgumentException> {
+                esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
+            }
+            exception.message shouldBe "Invalid seasonal flight time: 0 for flight MU9941"
         }
     }
 

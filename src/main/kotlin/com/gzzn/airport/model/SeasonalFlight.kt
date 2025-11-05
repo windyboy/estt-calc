@@ -9,6 +9,6 @@ import java.time.LocalDate
 data class SeasonalFlight (
 	val flightNumber: String,
 	val operationDays: String,
-	val flyingTime: Long? = 0,
+	val flyingTime: Long,
 	val seasonStart: LocalDate
 )

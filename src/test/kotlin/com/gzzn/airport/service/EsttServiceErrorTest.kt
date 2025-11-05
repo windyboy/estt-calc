@@ -3,6 +3,7 @@ package com.gzzn.airport.service
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.HistoryFlightRepository
 import com.gzzn.airport.repository.SeasonRepository
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -73,22 +74,21 @@ class EsttServiceErrorTest : DescribeSpec({
     }
 
     describe("data inconsistency scenarios") {
-        it("should handle null flyingTime in seasonal flight") {
+        it("should reject zero flyingTime in seasonal flight") {
             val flight = SeasonalFlight(
                 "MU9941",
                 "1234567",
-                null,  // null flying time
+                0L,  // zero flying time - invalid
                 LocalDate.of(2021, 3, 28)
             )
             
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns flight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns emptyList()
             
-            val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
-            
-            result.isSuccess.shouldBeTrue()
-            // Should use 0 when flyingTime is null and no history
-            result.getOrNull()?.flyingTime shouldBe 0
+            val exception = shouldThrow<IllegalArgumentException> {
+                esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
+            }
+            exception.message shouldBe "Invalid seasonal flight time: 0 for flight MU9941"
         }
         
         it("should handle empty operation days") {
@@ -121,15 +121,13 @@ class EsttServiceErrorTest : DescribeSpec({
             result.getOrNull() shouldBe emptyList()
         }
         
-        it("should handle future date query") {
+        it("should reject far future date query") {
             val futureDate = LocalDate.of(2030, 12, 31)
             
-            every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } returns null
-            
-            val result = esttService.calculate("MU9941", futureDate)
-            
-            result.isSuccess.shouldBeTrue()
-            result.getOrNull()?.seasonal shouldBe false
+            val exception = shouldThrow<IllegalArgumentException> {
+                esttService.calculate("MU9941", futureDate)
+            }
+            exception.message shouldBe "Flight date cannot be more than 1 year in the future, got: $futureDate"
         }
         
         it("should handle invalid flight number in calculate") {

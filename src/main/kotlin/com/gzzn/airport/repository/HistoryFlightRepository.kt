@@ -11,22 +11,22 @@ import java.time.LocalDate
 interface HistoryFlightRepository {
     @Query(
         """
-select * from (
-  select
-    PRE_DEPT_DATETIME_ACTUAL pre_actual_time,
-    ACTUAL_DATETIME actual_time,
-    flight_date,
-    SCHEDULED_DATETIME scheduled_time
-  from
-    FIMS_FLIGHTSCHD_HST historicalFlight
-  where
-    ACTUAL_DATETIME is not null
-    and PRE_DEPT_DATETIME_ACTUAL is not null
-    and ARRI_OR_DEPT='A' 
-    and flight_number = :flightNumber
-    and flight_date between :startDate and :endDate 
-  order by flight_date desc
-) where ROWNUM <= :maxRows
+SELECT
+  PRE_DEPT_DATETIME_ACTUAL previous_departure_time,
+  ACTUAL_DATETIME actual_time,
+  flight_date,
+  SCHEDULED_DATETIME scheduled_time
+FROM
+  FIMS_FLIGHTSCHD_HST
+WHERE
+  ACTUAL_DATETIME IS NOT NULL
+  AND PRE_DEPT_DATETIME_ACTUAL IS NOT NULL
+  AND PRE_DEPT_DATETIME_ACTUAL < ACTUAL_DATETIME
+  AND ARRI_OR_DEPT='A' 
+  AND flight_number = :flightNumber
+  AND flight_date BETWEEN :startDate AND :endDate 
+ORDER BY flight_date DESC
+FETCH FIRST :maxRows ROWS ONLY
   """
     )
     fun getArrivalFlight(flightNumber: String, startDate: LocalDate, endDate: LocalDate, maxRows: Int = 300): List<HistoricalFlight>
