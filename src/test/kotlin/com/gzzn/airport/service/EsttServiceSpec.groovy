@@ -25,7 +25,8 @@ class EsttServiceSpec extends Specification {
                 120,  // maxHistoryDelay
                 20,   // minHistoryFlight
                 'yyMMdd',  // dateFormat
-                60L   // historyStartOffsetDays
+                60L,  // historyStartOffsetDays
+                100   // maxHistoryRows
         )
         esttService.init()
     }

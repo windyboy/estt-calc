@@ -2,17 +2,22 @@ package com.gzzn.airport.resource
 
 import com.gzzn.airport.model.*
 import com.gzzn.airport.service.EsttService
+import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
 import org.slf4j.LoggerFactory
 
 @Controller(value = "/estt")
-class EsttController(private val esttService: EsttService) {
+class EsttController(
+	private val esttService: EsttService,
+	@Value("\${estt.validation.flight-number-pattern:^[A-Z]{2}[0-9]{3,4}$}") flightNumberPattern: String
+) {
 	companion object {
 		private val log = LoggerFactory.getLogger(EsttController::class.java)
-		private val FLIGHT_NUMBER_REGEX = Regex("^[A-Z]{2}[0-9]{3,4}$")
 	}
+	
+	private val FLIGHT_NUMBER_REGEX = Regex(flightNumberPattern)
 
 	/**
 	 * Query active season

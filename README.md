@@ -142,6 +142,8 @@ Configuration can be set via environment variables or the `application.yml` file
 | `MAX_DELAY` | 最大延误时间（分钟）(Max delay in minutes) | Integer | `120` |
 | `MIN_HISTORY` | 最少历史航班数 (Min historical flights) | Integer | `20` |
 | `START_MINUS` | 历史查询起始偏移天数 (History start offset days) | Integer | `60` |
+| `MAX_HISTORY_ROWS` | 历史航班查询最大数量 (Max history rows to fetch) | Integer | `100` |
+| `FLIGHT_NUMBER_PATTERN` | 航班号验证正则 (Flight number validation regex) | Regex | `^[A-Z]{2}[0-9]{3,4}$` |
 
 ### 配置文件示例 (Configuration Example)
 
@@ -166,6 +168,9 @@ estt:
     min-history-flight: 20
     date-format: 'yyMMdd'
     history-start-offset-days: 60
+    max-history-rows: 100
+  validation:
+    flight-number-pattern: '^[A-Z]{2}[0-9]{3,4}$'
 ```
 
 ## API 接口 (API Endpoints)

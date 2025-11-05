@@ -24,7 +24,8 @@ open class EsttService(
     @Value("\${estt.calculation.max-history-delay:120}") val maxHistoryDelay: Int,
     @Value("\${estt.calculation.min-history-flight:20}") val minHistoryFlight: Int,
     @Value("\${estt.calculation.date-format}") val dateFormat: String,
-    @Value("\${estt.calculation.history-start-offset-days}") val historyStartOffsetDays: Long
+    @Value("\${estt.calculation.history-start-offset-days}") val historyStartOffsetDays: Long,
+    @Value("\${estt.calculation.max-history-rows:100}") val maxHistoryRows: Int
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(EsttService::class.java)
@@ -32,7 +33,7 @@ open class EsttService(
 
     @PostConstruct
     fun init() {
-        log.info("EsttService initialized with maxHistoryDelay=$maxHistoryDelay, minHistoryFlight=$minHistoryFlight, historyStartOffsetDays=$historyStartOffsetDays")
+        log.info("EsttService initialized with maxHistoryDelay=$maxHistoryDelay, minHistoryFlight=$minHistoryFlight, historyStartOffsetDays=$historyStartOffsetDays, maxHistoryRows=$maxHistoryRows")
     }
 
     /**
@@ -139,7 +140,7 @@ open class EsttService(
                 seasonalFlight.flightNumber,
                 seasonStart,
                 flightDate,
-                100  // Fetch max 100 records for performance
+                maxHistoryRows  // Fetch max records from configuration
             )
             // Filter the historical flights to include only those that match the criteria
             val filtered = historyFlights.asSequence()

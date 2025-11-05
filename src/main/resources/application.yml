@@ -29,6 +29,9 @@ estt:
     min-history-flight: ${MIN_HISTORY:20}
     date-format: 'yyMMdd'
     history-start-offset-days: ${START_MINUS:60}
+    max-history-rows: ${MAX_HISTORY_ROWS:100}
+  validation:
+    flight-number-pattern: ${FLIGHT_NUMBER_PATTERN:^[A-Z]{2}[0-9]{3,4}$}
 
 endpoints:
   health:
