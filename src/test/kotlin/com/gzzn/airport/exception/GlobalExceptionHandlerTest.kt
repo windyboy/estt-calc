@@ -1,6 +1,7 @@
 package com.gzzn.airport.exception
 
 import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.micronaut.http.HttpRequest
@@ -19,7 +20,7 @@ class GlobalExceptionHandlerTest : DescribeSpec({
 
             response.status shouldBe HttpStatus.BAD_REQUEST
             response.body().status shouldBe 400
-            response.body().error shouldBe "Bad Request"
+            response.body().error shouldBe "VALIDATION_ERROR"
             response.body().message shouldBe "Test error message"
         }
 
@@ -31,7 +32,7 @@ class GlobalExceptionHandlerTest : DescribeSpec({
 
             response.status shouldBe HttpStatus.BAD_REQUEST
             response.body().status shouldBe 400
-            response.body().error shouldBe "Bad Request"
+            response.body().error shouldBe "VALIDATION_ERROR"
             response.body().message shouldBe "Invalid request parameters"
         }
     }
@@ -47,7 +48,7 @@ class GlobalExceptionHandlerTest : DescribeSpec({
 
             response.status shouldBe HttpStatus.INTERNAL_SERVER_ERROR
             response.body().status shouldBe 500
-            response.body().error shouldBe "Internal Server Error"
+            response.body().error shouldBe "INTERNAL_ERROR"
             response.body().message shouldBe "An unexpected error occurred"
         }
 
@@ -59,27 +60,29 @@ class GlobalExceptionHandlerTest : DescribeSpec({
 
             response.status shouldBe HttpStatus.INTERNAL_SERVER_ERROR
             response.body().status shouldBe 500
-            response.body().error shouldBe "Internal Server Error"
+            response.body().error shouldBe "INTERNAL_ERROR"
             response.body().message shouldBe "An unexpected error occurred"
         }
     }
 
     describe("ErrorResponse") {
         it("should create error response with all fields") {
-            val errorResponse = ErrorResponse(404, "Not Found", "Resource not found")
+            val timestamp = java.time.Instant.now()
+            val errorResponse = ErrorResponse(404, "NOT_FOUND", "Resource not found", timestamp)
 
             errorResponse.status shouldBe 404
-            errorResponse.error shouldBe "Not Found"
+            errorResponse.error shouldBe "NOT_FOUND"
             errorResponse.message shouldBe "Resource not found"
+            errorResponse.timestamp shouldBe timestamp
         }
 
-        it("should have proper equality") {
-            val error1 = ErrorResponse(500, "Error", "Message")
-            val error2 = ErrorResponse(500, "Error", "Message")
-            val error3 = ErrorResponse(400, "Bad Request", "Different")
+        it("should use ErrorCode helper") {
+            val errorResponse = ErrorCode.NOT_FOUND.toErrorResponse("Resource not found")
 
-            error1 shouldBe error2
-            error1 shouldNotBe error3
+            errorResponse.status shouldBe 404
+            errorResponse.error shouldBe "NOT_FOUND"
+            errorResponse.message shouldBe "Resource not found"
+            errorResponse.timestamp shouldNotBe null
         }
     }
 })

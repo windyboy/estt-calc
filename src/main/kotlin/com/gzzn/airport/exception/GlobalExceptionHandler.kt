@@ -18,10 +18,8 @@ class IllegalArgumentExceptionHandler : ExceptionHandler<IllegalArgumentExceptio
     override fun handle(request: HttpRequest<*>, exception: IllegalArgumentException): HttpResponse<ErrorResponse> {
         log.warn("Bad request: ${exception.message}", exception)
         return HttpResponse.badRequest(
-            ErrorResponse(
-                status = 400,
-                error = "Bad Request",
-                message = exception.message ?: "Invalid request parameters"
+            ErrorCode.VALIDATION_ERROR.toErrorResponse(
+                exception.message ?: "Invalid request parameters"
             )
         )
     }
@@ -36,10 +34,8 @@ class GenericExceptionHandler : ExceptionHandler<Exception, HttpResponse<ErrorRe
     override fun handle(request: HttpRequest<*>, exception: Exception): HttpResponse<ErrorResponse> {
         log.error("Internal server error: ${exception.message}", exception)
         return HttpResponse.serverError(
-            ErrorResponse(
-                status = 500,
-                error = "Internal Server Error",
-                message = "An unexpected error occurred"
+            ErrorCode.INTERNAL_ERROR.toErrorResponse(
+                "An unexpected error occurred"
             )
         )
     }
@@ -49,6 +45,7 @@ class GenericExceptionHandler : ExceptionHandler<Exception, HttpResponse<ErrorRe
 data class ErrorResponse(
     val status: Int,
     val error: String,
-    val message: String
+    val message: String,
+    val timestamp: java.time.Instant = java.time.Instant.now()
 )
 

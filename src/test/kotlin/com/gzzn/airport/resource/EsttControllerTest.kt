@@ -51,7 +51,7 @@ class EsttControllerTest : DescribeSpec({
             response.status shouldBe HttpStatus.INTERNAL_SERVER_ERROR
             val error = response.body() as ErrorResponse
             error.status shouldBe 500
-            error.error shouldBe "SYSTEM_ERROR"
+            error.error shouldBe "DATABASE_ERROR"
         }
     }
 

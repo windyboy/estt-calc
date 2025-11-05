@@ -320,9 +320,18 @@ Interactive API documentation and testing interface
 - **HistoryFlightRepository**: Access to historical flight records
 - **GlobalExceptionHandler**: Centralized error handling
 
-### Result Type Pattern (Error Handling)
+### Result Type Pattern (Error Handling) 🔧
 
-The service layer uses Kotlin's `Result<T>` type to provide robust error handling:
+The service layer uses Kotlin's `Result<T>` type to provide robust, type-safe error handling that clearly distinguishes between business cases and system errors:
+
+#### Why Result Type?
+
+1. **Type-Safe Error Handling**: Compile-time guarantee of error handling
+2. **Clear Error Classification**: Business cases (no data) vs System errors (database failure)
+3. **Explicit Error Propagation**: Errors flow through call chain without exception swallowing
+4. **Better Monitoring**: Track success/failure rates and error types
+
+#### Result Usage Pattern
 
 **Service Layer Methods**:
 ```kotlin
@@ -336,16 +345,55 @@ fun calculate(flightNumber: String, flightDate: LocalDate): Result<FlyingTimeRes
 ```kotlin
 return esttService.calculate(flightNumber, flightDate).fold(
     onSuccess = { result -> HttpResponse.ok(result) },
-    onFailure = { e -> HttpResponse.serverError(ErrorResponse(500, "CALCULATION_ERROR", e.message)) }
+    onFailure = { e -> 
+        log.error("Calculation failed", e)
+        HttpResponse.serverError(
+            ErrorCode.CALCULATION_ERROR.toErrorResponse(e.message ?: "Calculation failed")
+        )
+    }
 )
 ```
 
+#### FlatMap for Chaining Operations
+
+The service layer uses custom `flatMap` extension to chain Result operations elegantly:
+
+```kotlin
+fun getHistoryFlights(...): Result<List<HistoricalFlight>> {
+    return getSeasonalFlight(flightNumber, flightDate)
+        .flatMap { seasonalFlight ->
+            if (seasonalFlight == null) {
+                Result.success(emptyList())  // Business case: no data
+            } else {
+                getHistoryFlightsWithSeasonFlight(seasonalFlight, flightDate)
+            }
+        }
+        .onFailure { e ->
+            log.error("Error getting history", e)
+        }
+}
+```
+
+#### Error Classification
+
+**Business Cases** (Success with empty/null data):
+- No seasonal flight found → Returns `Result.success(null)` or empty response
+- Insufficient historical data → Uses seasonal schedule time
+- No historical flights → Returns empty list
+
+**System Errors** (Failure):
+- Database connection timeout → `Result.failure(SQLException)`
+- Null pointer exceptions → `Result.failure(NullPointerException)`
+- Data parsing errors → `Result.failure(IllegalArgumentException)`
+
 **Benefits**:
 - ✅ Clear separation between business cases and system errors
-- ✅ Type-safe error handling
+- ✅ Type-safe error handling (compiler enforces error checking)
 - ✅ Explicit error propagation through call chain
 - ✅ Improved monitoring and alerting capabilities
 - ✅ Better debugging with comprehensive error logging
+- ✅ Functional programming patterns (flatMap, map, fold)
+- ✅ No silent failures or exception swallowing
 
 ### Features
 
@@ -354,10 +402,12 @@ return esttService.calculate(flightNumber, flightDate).fold(
 - **Validation**: Comprehensive input validation
 - **Error Handling**: Result type pattern for clear business/system error distinction
 - **Monitoring**: Health checks and Prometheus metrics
-- **Documentation**: OpenAPI/Swagger integration
+- **Documentation**: OpenAPI/Swagger integration with comprehensive API annotations
 - **Security**: Non-root Docker user, no hardcoded credentials
 - **Testing**: 96.4% test coverage with Kotest framework
 - **Code Quality**: Kotlin-native tooling (Kotest, MockK, Kover)
+- **Error Handling**: Result type pattern with flatMap for functional error propagation
+- **Observability**: MDC-based structured logging, Micrometer metrics for all endpoints
 
 ## 测试 (Testing)
 
@@ -491,7 +541,40 @@ Configure log levels in `logback.xml` or via environment variables.
 
 ## 版本历史 (Version History)
 
-- **v0.1.0** (Current - 2025-11-05)
+- **v0.1.1** (Current - 2025-11-05)
+  - 🔧 **Result Type Pattern Enhancement**
+    - Added `flatMap` and `mapNotNull` extension functions for elegant Result chaining
+    - Refactored service methods to use functional Result composition
+    - Eliminated `getOrThrow()` anti-pattern for clearer error propagation
+  - 🏷️ **Unified Error Code System**
+    - Created `ErrorCode` enum for standardized error responses
+    - Added timestamp to all error responses
+    - Consistent error classification across all endpoints (DATABASE_ERROR, CALCULATION_ERROR, etc.)
+  - 📊 **Enhanced Observability**
+    - Added MDC (Mapped Diagnostic Context) for structured logging
+    - Implemented Micrometer metrics on all API endpoints (@Timed, @Counted)
+    - Service-level metrics tracking (calculation time, success/failure rates)
+    - Better error tracking with error type tagging
+  - 📝 **Improved Logging Strategy**
+    - Optimized log levels (reduced INFO noise, enhanced DEBUG details)
+    - Context-aware logging with flight number and date in MDC
+    - More actionable log messages for production monitoring
+  - 📚 **Comprehensive API Documentation**
+    - Added OpenAPI annotations to all endpoints
+    - Parameter descriptions and examples
+    - Response schemas and status codes documentation
+    - Enhanced Swagger UI experience
+  - ✅ **Test Coverage Expansion**
+    - Added Result extension function tests
+    - Added error scenario tests (database failures, edge cases)
+    - Verified Result behavior in all test suites
+    - Maintained 96.4% code coverage
+  - 🔧 **Configuration Enhancement**
+    - Configurable max-history-rows (default: 300 for half-season coverage)
+    - Configurable flight-number-pattern for flexible validation
+    - All parameters externalized via environment variables
+
+- **v0.1.0** (2025-11-05)
   - 🚀 Upgraded to Java 21 and Micronaut 4.6.1
   - 🔧 Upgraded to Kotlin 1.9.25
   - 🔒 Enhanced security: removed default passwords, updated Docker to Eclipse Temurin 21

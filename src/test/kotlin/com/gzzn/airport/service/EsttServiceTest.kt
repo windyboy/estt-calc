@@ -24,14 +24,17 @@ class EsttServiceTest : DescribeSpec({
     lateinit var esttService: EsttService
     lateinit var seasonRepository: SeasonRepository
     lateinit var historyFlightRepository: HistoryFlightRepository
+    lateinit var meterRegistry: io.micrometer.core.instrument.MeterRegistry
 
     beforeEach {
         seasonRepository = mockk()
         historyFlightRepository = mockk()
+        meterRegistry = io.micrometer.core.instrument.simple.SimpleMeterRegistry()
         
         esttService = EsttService(
             seasonRepository,
             historyFlightRepository,
+            meterRegistry,
             120,
             20,
             "yyMMdd",
