@@ -1,5 +1,6 @@
 package com.gzzn.airport.resource
 
+import com.gzzn.airport.exception.ErrorResponse
 import com.gzzn.airport.model.*
 import com.gzzn.airport.service.EsttService
 import io.micronaut.context.annotation.Value
@@ -23,53 +24,69 @@ class EsttController(
 	 * Query active season
 	 */
 	@Get(uri = "/season")
-	fun getFlightSeason(): HttpResponse<FlightSeason> {
-		val activeSeason = esttService.getActiveSeason()
-		return if (activeSeason != null) {
-			HttpResponse.ok(activeSeason)
-		} else {
-			HttpResponse.notFound()
-		}
+	fun getFlightSeason(): HttpResponse<*> {
+		return esttService.getActiveSeason().fold(
+			onSuccess = { season -> 
+				if (season != null) HttpResponse.ok(season) 
+				else HttpResponse.notFound<FlightSeason>() 
+			},
+			onFailure = { e -> 
+				HttpResponse.serverError(ErrorResponse(500, "SYSTEM_ERROR", e.message ?: "Unknown error"))
+			}
+		)
 	}
 
 	@Get(uri = "/seasonal/{flightNumber}/{flightDateString}")
-	fun getSeasonalFlight(flightNumber: String, flightDateString: String): HttpResponse<SeasonalFlight> {
+	fun getSeasonalFlight(flightNumber: String, flightDateString: String): HttpResponse<*> {
 		val normalizedFlightNumber = flightNumber.uppercase()
 		validateFlightNumber(normalizedFlightNumber)
 		
 		val flightDate = esttService.parseFlightDate(flightDateString)
 		log.info("Getting seasonal flight for $normalizedFlightNumber on $flightDate")
 		
-		val seasonalFlight = esttService.getSeasonalFlight(normalizedFlightNumber, flightDate)
-		return if (seasonalFlight != null) {
-			HttpResponse.ok(seasonalFlight)
-		} else {
-			HttpResponse.notFound()
-		}
+		return esttService.getSeasonalFlight(normalizedFlightNumber, flightDate).fold(
+			onSuccess = { flight -> 
+				if (flight != null) HttpResponse.ok(flight) 
+				else HttpResponse.notFound<SeasonalFlight>() 
+			},
+			onFailure = { e -> 
+				HttpResponse.serverError(ErrorResponse(500, "SYSTEM_ERROR", e.message ?: "Unknown error"))
+			}
+		)
 	}
 
 	@Get(uri = "/history/{flightNumber}/{flightDateString}")
-	fun getHistoryFlights(flightNumber: String, flightDateString: String): HttpResponse<List<HistoricalFlight>> {
+	fun getHistoryFlights(flightNumber: String, flightDateString: String): HttpResponse<*> {
 		val normalizedFlightNumber = flightNumber.uppercase()
 		validateFlightNumber(normalizedFlightNumber)
 		
 		log.info("Getting history of $normalizedFlightNumber, $flightDateString")
 		val flightDate = esttService.parseFlightDate(flightDateString)
-		val history = esttService.getHistoryFlights(normalizedFlightNumber, flightDate)
-		log.info("history size: ${history.size}")
 		
-		return HttpResponse.ok(history)
+		return esttService.getHistoryFlights(normalizedFlightNumber, flightDate).fold(
+			onSuccess = { history -> 
+				log.info("history size: ${history.size}")
+				HttpResponse.ok(history)
+			},
+			onFailure = { e -> 
+				HttpResponse.serverError(ErrorResponse(500, "SYSTEM_ERROR", e.message ?: "Unknown error"))
+			}
+		)
 	}
 
 	@Get(uri = "/flyTime/{flightNumber}/{flightDateString}")
-	fun calculate(flightNumber: String, flightDateString: String): HttpResponse<FlyingTimeResponse> {
+	fun calculate(flightNumber: String, flightDateString: String): HttpResponse<*> {
 		val normalizedFlightNumber = flightNumber.uppercase()
 		validateFlightNumber(normalizedFlightNumber)
 		
 		val flightDate = esttService.parseFlightDate(flightDateString)
-		val result = esttService.calculate(normalizedFlightNumber, flightDate)
 		
-		return HttpResponse.ok(result)
+		return esttService.calculate(normalizedFlightNumber, flightDate).fold(
+			onSuccess = { result -> HttpResponse.ok(result) },
+			onFailure = { e -> 
+				HttpResponse.serverError(ErrorResponse(500, "CALCULATION_ERROR", e.message ?: "Unknown error"))
+			}
+		)
 	}
 
 	private fun validateFlightNumber(flightNumber: String) {

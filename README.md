@@ -236,8 +236,29 @@ GET /estt/flyTime/{flightNumber}/{flightDate}
 ### 错误响应 (Error Responses)
 
 - **400 Bad Request**: Invalid flight number or date format
-- **404 Not Found**: Seasonal flight or season not found
-- **500 Internal Server Error**: Unexpected server error
+- **404 Not Found**: Seasonal flight or season not found (business case - no data exists)
+- **500 Internal Server Error**: System error (database failure, network issues, etc.)
+
+**Error Response Format**:
+```json
+{
+  "status": 500,
+  "error": "SYSTEM_ERROR",
+  "message": "Database connection failed"
+}
+```
+
+#### Error Handling Strategy
+
+The application uses Kotlin's `Result` type to distinguish between:
+- **Business Cases**: No seasonal flight found, insufficient historical data (returns 200/404 with appropriate response)
+- **System Errors**: Database failures, network issues, unexpected exceptions (returns 500 with error details)
+
+This approach ensures:
+- Clear error classification for monitoring and alerting
+- Proper HTTP status codes for different scenarios
+- Comprehensive error logging for debugging
+- Exception propagation through the service layer
 
 ## 监控和健康检查 (Monitoring & Health Checks)
 
@@ -296,11 +317,39 @@ Interactive API documentation and testing interface
 - **HistoryFlightRepository**: Access to historical flight records
 - **GlobalExceptionHandler**: Centralized error handling
 
+### Result Type Pattern (Error Handling)
+
+The service layer uses Kotlin's `Result<T>` type to provide robust error handling:
+
+**Service Layer Methods**:
+```kotlin
+fun getActiveSeason(): Result<FlightSeason?>
+fun getSeasonalFlight(flightNumber: String, flightDate: LocalDate): Result<SeasonalFlight?>
+fun getHistoryFlights(flightNumber: String, flightDate: LocalDate): Result<List<HistoricalFlight>>
+fun calculate(flightNumber: String, flightDate: LocalDate): Result<FlyingTimeResponse>
+```
+
+**Controller Layer Handling**:
+```kotlin
+return esttService.calculate(flightNumber, flightDate).fold(
+    onSuccess = { result -> HttpResponse.ok(result) },
+    onFailure = { e -> HttpResponse.serverError(ErrorResponse(500, "CALCULATION_ERROR", e.message)) }
+)
+```
+
+**Benefits**:
+- ✅ Clear separation between business cases and system errors
+- ✅ Type-safe error handling
+- ✅ Explicit error propagation through call chain
+- ✅ Improved monitoring and alerting capabilities
+- ✅ Better debugging with comprehensive error logging
+
 ### Features
 
 - **Caching**: Active season is cached for 1 hour
 - **Performance**: Query limits prevent excessive data retrieval
 - **Validation**: Comprehensive input validation
+- **Error Handling**: Result type pattern for clear business/system error distinction
 - **Monitoring**: Health checks and Prometheus metrics
 - **Documentation**: OpenAPI/Swagger integration
 - **Security**: Non-root Docker user, no hardcoded credentials
@@ -376,14 +425,19 @@ Configure log levels in `logback.xml` or via environment variables.
 
 ## 版本历史 (Version History)
 
-- **v0.1.0** (Current - 2025-01-08)
+- **v0.1.0** (Current - 2025-11-05)
   - 🚀 Upgraded to Java 21 and Micronaut 4.6.1
   - 🔧 Upgraded to Kotlin 1.9.25
   - 🔒 Enhanced security: removed default passwords, updated Docker to Eclipse Temurin 21
   - ✅ Added comprehensive test suite (service, controller, repository, integration)
   - ⚡ Performance optimizations: caching, query limits (max-history-rows: 300)
   - 📚 Added OpenAPI/Swagger documentation
-  - 🛡️ Improved error handling with proper HTTP status codes
+  - 🛡️ **Improved error handling with Result type pattern**
+    - Service methods return `Result<T>` for clear error classification
+    - Distinguishes business cases (404) from system errors (500)
+    - Enhanced exception propagation through call chain
+    - Comprehensive error logging for monitoring and debugging
+    - Updated test suite to verify Result behavior
   - 🎯 Added input validation and flight number regex configuration
   - 📊 Added health checks and Prometheus metrics
   - 🔧 Configurable parameters: max-history-rows, flight-number-pattern

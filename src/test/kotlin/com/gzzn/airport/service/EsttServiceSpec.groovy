@@ -69,7 +69,8 @@ class EsttServiceSpec extends Specification {
 
         then:
         1 * seasonRepository.getFlightSeasonByTag(true) >> season
-        result == season
+        result.isSuccess()
+        result.get() == season
     }
 
     void "test getActiveSeason handles exception gracefully"() {
@@ -78,7 +79,7 @@ class EsttServiceSpec extends Specification {
 
         then:
         1 * seasonRepository.getFlightSeasonByTag(true) >> { throw new RuntimeException("DB error") }
-        result == null
+        result.isFailure()
     }
 
     void "test getSeasonalFlight returns flight when found"() {
@@ -95,7 +96,8 @@ class EsttServiceSpec extends Specification {
 
         then:
         1 * seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") >> seasonalFlight
-        result == seasonalFlight
+        result.isSuccess()
+        result.get() == seasonalFlight
     }
 
     void "test getSeasonalFlight returns null when operation day doesn't match"() {
@@ -113,7 +115,8 @@ class EsttServiceSpec extends Specification {
 
         then:
         1 * seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") >> seasonalFlight
-        result == null  // Filtered out because operation days doesn't contain "5"
+        result.isSuccess()
+        result.get() == null  // Filtered out because operation days doesn't contain "5"
     }
 
     void "test getSeasonalFlight returns null when not found"() {
@@ -122,7 +125,8 @@ class EsttServiceSpec extends Specification {
 
         then:
         1 * seasonRepository.getSeasonalArrivalFlight("XX9999", "%5%") >> null
-        result == null
+        result.isSuccess()
+        result.get() == null
     }
 
     void "test calculate with sufficient history"() {
@@ -144,13 +148,15 @@ class EsttServiceSpec extends Specification {
                 "MU9941",
                 _ as LocalDate,
                 LocalDate.of(2021, 12, 31),
-                100
+                300
         ) >> historyFlights
 
-        result.flightNumber == "MU9941"
-        result.history == true
-        result.seasonal == true
-        result.flyingTime > 0
+        result.isSuccess()
+        def response = result.get()
+        response.flightNumber == "MU9941"
+        response.history == true
+        response.seasonal == true
+        response.flyingTime > 0
     }
 
     void "test calculate with insufficient history uses seasonal time"() {
@@ -172,12 +178,14 @@ class EsttServiceSpec extends Specification {
                 "MU9941",
                 _ as LocalDate,
                 LocalDate.of(2021, 12, 31),
-                100
+                300
         ) >> historyFlights
 
-        result.flightNumber == "MU9941"
-        result.flyingTime == 90L
-        result.seasonal == true
+        result.isSuccess()
+        def response = result.get()
+        response.flightNumber == "MU9941"
+        response.flyingTime == 90L
+        response.seasonal == true
     }
 
     void "test calculate with no seasonal flight"() {
@@ -188,9 +196,11 @@ class EsttServiceSpec extends Specification {
         1 * seasonRepository.getSeasonalArrivalFlight("XX9999", "%5%") >> null
         0 * historyFlightRepository._
 
-        result.flightNumber == "XX9999"
-        result.flyingTime == 0
-        result.seasonal == false
+        result.isSuccess()
+        def response = result.get()
+        response.flightNumber == "XX9999"
+        response.flyingTime == 0
+        response.seasonal == false
     }
 
     void "test calculate with empty flight number throws exception"() {
@@ -215,7 +225,44 @@ class EsttServiceSpec extends Specification {
 
         then:
         1 * seasonRepository.getSeasonalArrivalFlight("XX9999", "%5%") >> null
-        result == []
+        result.isSuccess()
+        result.get() == []
+    }
+
+    void "test getSeasonalFlight returns failure when repository throws exception"() {
+        when:
+        def result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31))
+
+        then:
+        1 * seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") >> { throw new RuntimeException("Database connection failed") }
+        result.isFailure()
+    }
+
+    void "test getHistoryFlights returns failure when repository throws exception"() {
+        given:
+        def seasonalFlight = new SeasonalFlight(
+                "MU9941",
+                "1234567",
+                90L,
+                LocalDate.of(2021, 3, 28)
+        )
+
+        when:
+        def result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
+
+        then:
+        1 * seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") >> seasonalFlight
+        1 * historyFlightRepository.getArrivalFlight(_, _, _, _) >> { throw new RuntimeException("Database error") }
+        result.isFailure()
+    }
+
+    void "test calculate returns failure when repository throws exception"() {
+        when:
+        def result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
+
+        then:
+        1 * seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") >> { throw new RuntimeException("Database connection failed") }
+        result.isFailure()
     }
 
     private List<HistoricalFlight> createHistoryFlights(int count, LocalDate baseDate) {
