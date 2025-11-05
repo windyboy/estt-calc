@@ -3,16 +3,41 @@ micronaut:
     name: estt-calc
   serde:
     write-dates-as-timestamps: false
+  caches:
+    active-season:
+      expire-after-write: 1h
+  router:
+    static-resources:
+      swagger:
+        paths: classpath:META-INF/swagger
+        mapping: /swagger/**
+      swagger-ui:
+        paths: classpath:META-INF/swagger/views/swagger-ui
+        mapping: /swagger-ui/**
+
 datasources:
   gzzn:
     url: "jdbc:oracle:thin:@${ORACLE_HOST:bj024.int.it2000.com.cn}:${ORACLE_PORT:1521}:${ORACLE_SID:orcl}"
     driverClassName: oracle.jdbc.OracleDriver
     username: ${ORACLE_USER:cdjc}
-    password: ${ORACLE_PASS:cdjc}
+    password: ${ORACLE_PASS}
     dialect: Oracle
 
-default:
-  maxHistoryDelay: ${MAX_DELAY:120}
-  minHistoryFlight: ${MIN_HISTORY:20}
-  dateFormat: 'yyMMdd'
-  startMinus: ${START_MINUS:60}
+estt:
+  calculation:
+    max-history-delay: ${MAX_DELAY:120}
+    min-history-flight: ${MIN_HISTORY:20}
+    date-format: 'yyMMdd'
+    history-start-offset-days: ${START_MINUS:60}
+
+endpoints:
+  health:
+    enabled: true
+  info:
+    enabled: true
+  prometheus:
+    enabled: true
+
+micronaut-openapi:
+  openapi:
+    enabled: true

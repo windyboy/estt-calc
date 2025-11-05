@@ -4,9 +4,11 @@ import com.gzzn.airport.model.FlightSeason
 import com.gzzn.airport.model.FlyingTimeResponse
 import com.gzzn.airport.model.HistoricalFlight
 import com.gzzn.airport.model.SeasonalFlight
-import com.gzzn.airport.respository.HistoryFlightRepository
-import com.gzzn.airport.respository.SeasonRepository
+import com.gzzn.airport.repository.HistoryFlightRepository
+import com.gzzn.airport.repository.SeasonRepository
+import io.micronaut.cache.annotation.Cacheable
 import io.micronaut.context.annotation.Value
+import jakarta.annotation.PostConstruct
 import jakarta.inject.Singleton
 import org.slf4j.LoggerFactory
 import java.time.Duration
@@ -16,23 +18,29 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 
 @Singleton
-class EsttService(
+open class EsttService(
     private val seasonRepository: SeasonRepository,
     private val historyFlightRepository: HistoryFlightRepository,
-    @Value("\${default.maxHistoryDelay:120}") val maxHistoryDelay: Int,
-    @Value("\${default.minHistoryFlight:20}") val minHistoryFlight: Int,
-    @Value("\${default.dateFormat}") val dateFormat: String,
-    @Value("\${default.startMinus}") val startMinus: Long
+    @Value("\${estt.calculation.max-history-delay:120}") val maxHistoryDelay: Int,
+    @Value("\${estt.calculation.min-history-flight:20}") val minHistoryFlight: Int,
+    @Value("\${estt.calculation.date-format}") val dateFormat: String,
+    @Value("\${estt.calculation.history-start-offset-days}") val historyStartOffsetDays: Long
 ) {
     companion object {
-        private val log = LoggerFactory.getLogger("EsttService")
+        private val log = LoggerFactory.getLogger(EsttService::class.java)
+    }
+
+    @PostConstruct
+    fun init() {
+        log.info("EsttService initialized with maxHistoryDelay=$maxHistoryDelay, minHistoryFlight=$minHistoryFlight, historyStartOffsetDays=$historyStartOffsetDays")
     }
 
     /**
-     * Get the active flight season.
+     * Get the active flight season (cached for 1 hour).
      * @return the current flight season.
      */
-    fun getActiveSeason(): FlightSeason? {
+    @Cacheable("active-season")
+    open fun getActiveSeason(): FlightSeason? {
         return try {
             val activeFlightSeason = seasonRepository.getFlightSeasonByTag(true)
             log.info("Active flight season: $activeFlightSeason")
@@ -48,7 +56,7 @@ class EsttService(
      * @param dateString the date string to parse.
      * @return the parsed LocalDate object.
      */
-    fun getFlightDate(dateString: String): LocalDate {
+    fun parseFlightDate(dateString: String): LocalDate {
         return try {
             LocalDate.parse(dateString, DateTimeFormatter.ofPattern(dateFormat))
         } catch (e: Exception) {
@@ -74,17 +82,23 @@ class EsttService(
      */
     fun getSeasonalFlight(flightNumber: String, flightDate: LocalDate): SeasonalFlight? {
         return try {
-            val likeOperationDay = "%${getOperationDay(flightDate)}%"
-            log.debug("Finding seasonal flight for flight number $flightNumber, like operation day $likeOperationDay")
+            val operationDay = getOperationDay(flightDate).toString()
+            val likeOperationDay = "%$operationDay%"
+            log.debug("Finding seasonal flight for flight number $flightNumber, operation day $operationDay")
+            
             val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, likeOperationDay)
-            log.debug("Found seasonal flight: {}", seasonalFlight)
-            if (seasonalFlight == null) {
-                throw SeasonalFlightNotFoundException("No seasonal flight found for $flightNumber on $flightDate")
+            
+            // Additional validation: ensure the operation day is actually in the string
+            // This prevents incorrect matches like "1" matching "21"
+            val validatedFlight = seasonalFlight?.takeIf { 
+                it.operationDays.contains(operationDay) 
             }
-            seasonalFlight
+            
+            log.debug("Found seasonal flight: {}", validatedFlight)
+            validatedFlight
         } catch (e: Exception) {
             log.error("Error finding seasonal flight for $flightNumber on $flightDate", e)
-            throw e
+            null
         }
     }
 
@@ -119,12 +133,13 @@ class EsttService(
                 return emptyList()
             }
 
-            val seasonStart = getHistoryStartDate(seasonalFlight.seasonStart)
+            val seasonStart = calculateHistoryStartDate(seasonalFlight.seasonStart)
             log.info("flight: $seasonalFlight, historical flight from $seasonStart")
             val historyFlights = historyFlightRepository.getArrivalFlight(
                 seasonalFlight.flightNumber,
                 seasonStart,
-                flightDate
+                flightDate,
+                100  // Fetch max 100 records for performance
             )
             // Filter the historical flights to include only those that match the criteria
             val filtered = historyFlights.asSequence()
@@ -147,30 +162,26 @@ class EsttService(
      * @return true if the historical flight matches the criteria, false otherwise.
      */
     private fun isHistoryFlight(seasonalFlight: SeasonalFlight?, historyFlight: HistoricalFlight): Boolean {
-        return try {
-            if (seasonalFlight == null) {
-                log.warn("seasonal flight is null!")
-                return false
+        if (seasonalFlight == null) {
+            log.warn("seasonal flight is null!")
+            return false
+        }
+
+        val seasonalFlyingTime = seasonalFlight.flyingTime ?: return false
+        val operationDay = getOperationDay(historyFlight.flightDate)
+        val actualFlyTime = calculateDurationMinutes(historyFlight.preActualTime, historyFlight.actualTime)
+
+        // Check if the operation day matches, the flight time order is correct, and the delay is within the maximum allowed delay
+        val operationDayMatches = seasonalFlight.operationDays.contains(operationDay.toString())
+        val flightTimeOrderCorrect = historyFlight.preActualTime < historyFlight.actualTime
+        val withinMaxDelay = abs(actualFlyTime - seasonalFlyingTime) < maxHistoryDelay
+
+        val result = operationDayMatches && flightTimeOrderCorrect && withinMaxDelay
+
+        return result.also {
+            if (log.isDebugEnabled) {
+                log.debug("history: $historyFlight, include: $it")
             }
-
-            val operationDay = getOperationDay(historyFlight.flightDate)
-            val actualFlyTime = getMinutes(historyFlight.preActualTime, historyFlight.actualTime)
-
-            // Check if the operation day matches, the flight time order is correct, and the delay is within the maximum allowed delay
-            val operationDayMatches = seasonalFlight.operationDays.contains(operationDay.toString())
-            val flightTimeOrderCorrect = historyFlight.preActualTime < historyFlight.actualTime
-            val withinMaxDelay = abs(actualFlyTime - seasonalFlight.flyingTime!!) < maxHistoryDelay
-
-            val result = operationDayMatches && flightTimeOrderCorrect && withinMaxDelay
-
-            result.also {
-                if (log.isDebugEnabled) {
-                    log.debug("history: $historyFlight, include: $it")
-                }
-            }
-        } catch (e: Exception) {
-            log.error("Error checking if history flight matches criteria", e)
-            false
         }
     }
 
@@ -231,7 +242,7 @@ class EsttService(
         if (qualifiedFlights.isEmpty()) return 0
         val flightsToUse = minOf(qualifiedFlights.size, minHistoryFlight)
         return qualifiedFlights.take(flightsToUse)
-            .sumOf { getMinutes(it.preActualTime, it.actualTime) } / flightsToUse
+            .sumOf { calculateDurationMinutes(it.preActualTime, it.actualTime) } / flightsToUse
     }
 
     /**
@@ -240,15 +251,10 @@ class EsttService(
      * @return a list of qualified historical flights.
      */
     private fun getQualifiedHistoryFlights(historyFlights: List<HistoricalFlight>): List<HistoricalFlight> {
-        return try {
-            historyFlights.asSequence()
-                .filter { isFlightDelayAcceptable(it) }
-                .sortedByDescending { it.scheduledTime }
-                .toList()
-        } catch (e: Exception) {
-            log.error("Error getting qualified history flights", e)
-            emptyList()
-        }
+        return historyFlights.asSequence()
+            .filter { isFlightDelayAcceptable(it) }
+            .sortedByDescending { it.scheduledTime }
+            .toList()
     }
 
     /**
@@ -257,28 +263,18 @@ class EsttService(
      * @return true if the delay is within the maximum allowed delay, false otherwise.
      */
     private fun isFlightDelayAcceptable(historyFlight: HistoricalFlight): Boolean {
-        return try {
-            val minutes = getMinutes(historyFlight.scheduledTime, historyFlight.actualTime)
-            minutes < maxHistoryDelay
-        } catch (e: Exception) {
-            log.error("Error checking flight delay for $historyFlight", e)
-            false
-        }
+        val minutes = calculateDurationMinutes(historyFlight.scheduledTime, historyFlight.actualTime)
+        return minutes < maxHistoryDelay
     }
 
     /**
      * Calculate the difference in minutes between two LocalDateTime objects.
-     * @param scheduledTime the scheduled time.
-     * @param actualTime the actual time.
+     * @param startTime the start time.
+     * @param endTime the end time.
      * @return the difference in minutes.
      */
-    private fun getMinutes(scheduledTime: LocalDateTime, actualTime: LocalDateTime): Long {
-        return try {
-            abs(Duration.between(scheduledTime, actualTime).toMinutes())
-        } catch (e: Exception) {
-            log.error("Error calculating minutes between $scheduledTime and $actualTime", e)
-            0
-        }
+    private fun calculateDurationMinutes(startTime: LocalDateTime, endTime: LocalDateTime): Long {
+        return abs(Duration.between(startTime, endTime).toMinutes())
     }
 
     /**
@@ -286,13 +282,8 @@ class EsttService(
      * @param seasonStart the season start date.
      * @return the start date for historical flights.
      */
-    private fun getHistoryStartDate(seasonStart: LocalDate): LocalDate {
-        return try {
-            seasonStart.minusDays(startMinus)
-        } catch (e: Exception) {
-            log.error("Error calculating history start date from $seasonStart", e)
-            seasonStart
-        }
+    private fun calculateHistoryStartDate(seasonStart: LocalDate): LocalDate {
+        return seasonStart.minusDays(historyStartOffsetDays)
     }
 }
 

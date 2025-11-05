@@ -1,4 +1,4 @@
-package com.gzzn.airport.respository
+package com.gzzn.airport.repository
 
 import com.gzzn.airport.model.FlightSeason
 import com.gzzn.airport.model.SeasonalFlight
@@ -42,3 +42,4 @@ interface SeasonRepository {
 	fun getSeasonalArrivalFlight(flightNumber: String, operationDay: String): SeasonalFlight?
 
 }
+
