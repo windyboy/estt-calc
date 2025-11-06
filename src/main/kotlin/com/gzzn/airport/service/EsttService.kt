@@ -119,11 +119,13 @@ open class EsttService(
 
     /**
      * Find a seasonal flight for a given flight number and date.
+      * Cached for 4 hours since seasonal schedules rarely change.
       * Fast-fail circuit breaker: 10 attempts with 500ms delay, giving database 5 seconds total.
       * @param flightNumber the flight number.
       * @param flightDate the flight date.
       * @return the seasonal flight if found, null otherwise, wrapped in a Result.
       */
+     @Cacheable("seasonal-flight")
      @CircuitBreaker(attempts = "10", delay = "500ms", reset = "60s")
      open fun getSeasonalFlight(flightNumber: String, flightDate: LocalDate): Result<SeasonalFlight?> {
          return runCatching {
