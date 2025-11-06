@@ -28,7 +28,7 @@ class DatabaseHealthIndicator(
         return Mono.fromCallable {
             try {
                 // Try to query the database
-                seasonRepository.getFlightSeasonByTag(true)
+                seasonRepository.getFlightSeason(true)
                 
                 HealthResult.builder("database", HealthStatus.UP)
                     .details(mapOf(

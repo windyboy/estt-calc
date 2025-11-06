@@ -20,7 +20,7 @@ class EsttControllerIntegrationTest : DescribeSpec() {
 
     init {
 
-    xdescribe("GET /estt/season - disabled") {
+    xdescribe("GET /estt/season") {
         it("should return season or not found") {
             val response = client.toBlocking().exchange(
                 HttpRequest.GET<Any>("/estt/season"),

@@ -11,4 +11,10 @@ data class SeasonalFlight (
 	val operationDays: String,
 	val flyingTime: Long,
 	val seasonStart: LocalDate
-)
+) {
+	init {
+		require(operationDays.all { it.isDigit() && it in '1'..'7' }) {
+			"Invalid operationDays: $operationDays. Must contain only digits 1-7."
+		}
+	}
+}

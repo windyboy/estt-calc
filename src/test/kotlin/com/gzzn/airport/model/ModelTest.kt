@@ -1,5 +1,6 @@
 package com.gzzn.airport.model
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
@@ -37,6 +38,18 @@ class ModelTest : DescribeSpec({
             flight.operationDays shouldBe "1234567"
             flight.flyingTime shouldBe 90L
             flight.seasonStart shouldBe LocalDate.of(2021, 3, 28)
+        }
+
+        it("should throw exception for invalid operationDays") {
+            shouldThrow<IllegalArgumentException> {
+                SeasonalFlight("MU9941", "89", 90L, LocalDate.of(2021, 3, 28))
+            }
+        }
+
+        it("should throw exception for operationDays with non-digit") {
+            shouldThrow<IllegalArgumentException> {
+                SeasonalFlight("MU9941", "12a", 90L, LocalDate.of(2021, 3, 28))
+            }
         }
     }
 

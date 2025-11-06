@@ -83,10 +83,10 @@ cd estt-calc-kotlin
 
 The build produces several distribution formats:
 
-- `build/libs/estt-calc-0.0.21.jar` - Standard JAR
-- `build/libs/estt-calc-0.0.21-all.jar` - Fat JAR (shadowJar)
-- `build/distributions/estt-calc-0.0.21.tar` - Distribution archive
-- `build/distributions/estt-calc-0.0.21.zip` - Distribution archive
+- `build/libs/estt-calc-0.1.2.jar` - Standard JAR
+- `build/libs/estt-calc-0.1.2-all.jar` - Fat JAR (shadowJar)
+- `build/distributions/estt-calc-0.1.2.tar` - Distribution archive
+- `build/distributions/estt-calc-0.1.2.zip` - Distribution archive
 
 ## 运行 (Running the Application)
 
@@ -113,17 +113,17 @@ docker run -d \
 
 ```bash
 # Download/build the shadow JAR
-java -jar build/libs/estt-calc-0.0.21-all.jar
+java -jar build/libs/estt-calc-0.1.2-all.jar
 ```
 
 #### Using Distribution Package
 
 ```bash
 # Extract the distribution
-unzip build/distributions/estt-calc-0.0.21.zip
+unzip build/distributions/estt-calc-0.1.2.zip
 
 # Run the startup script
-cd estt-calc-0.0.21
+cd estt-calc-0.1.2
 ./bin/estt-calc
 ```
 
@@ -398,14 +398,15 @@ fun getHistoryFlights(...): Result<List<HistoricalFlight>> {
 ### Features
 
 - **Caching**: Active season is cached for 1 hour
-- **Performance**: Query limits prevent excessive data retrieval
-- **Validation**: Comprehensive input validation
+- **Performance**: Query limits and optimizations prevent excessive data retrieval
+- **Pagination**: Efficient history pagination with proper filtering
+- **Validation**: Comprehensive input validation including operation days format
 - **Error Handling**: Result type pattern for clear business/system error distinction
 - **Monitoring**: Health checks and Prometheus metrics
 - **Documentation**: OpenAPI/Swagger integration with comprehensive API annotations
-- **Security**: Non-root Docker user, no hardcoded credentials
-- **Testing**: 96.4% test coverage with Kotest framework
-- **Code Quality**: Kotlin-native tooling (Kotest, MockK, Kover)
+- **Security**: Non-root Docker user, no hardcoded credentials, rate limiting ready
+- **Testing**: 96.4% test coverage with 112 tests using Kotest framework
+- **Code Quality**: Kotlin-native tooling (Kotest, MockK, Kover), refactored maintainable code
 - **Error Handling**: Result type pattern with flatMap for functional error propagation
 - **Observability**: MDC-based structured logging, Micrometer metrics for all endpoints
 
@@ -454,7 +455,7 @@ describe("calculate") {
 
 ### Test Coverage
 
-**Current Coverage:** 96.4% line coverage, 86.5% branch coverage
+**Current Coverage:** 96.4% line coverage, 86.5% branch coverage (112 tests)
 
 | Package | Classes | Methods | Lines | Branches | Instructions |
 |---------|---------|---------|-------|----------|--------------|
@@ -469,7 +470,7 @@ describe("calculate") {
 ```
 src/test/kotlin/com/gzzn/airport/
 ├── service/
-│   ├── EsttServiceTest.kt              # 17 core business logic tests
+│   ├── EsttServiceTest.kt              # 20 core business logic tests (including pagination)
 │   └── EsttServiceEdgeCaseTest.kt      # 12 edge case & boundary tests
 ├── resource/
 │   ├── EsttControllerTest.kt           # 17 controller unit tests
@@ -477,7 +478,7 @@ src/test/kotlin/com/gzzn/airport/
 ├── exception/
 │   └── GlobalExceptionHandlerTest.kt   # 6 error handling tests
 ├── model/
-│   └── ModelTest.kt                    # 4 data class tests
+│   └── ModelTest.kt                    # 5 data class tests (including operationDays validation)
 ├── repository/
 │   └── RepositoryTest.kt               # Repository injection tests
 ├── ApplicationTest.kt                  # Application startup tests
@@ -485,10 +486,10 @@ src/test/kotlin/com/gzzn/airport/
 ```
 
 **Test Categories:**
-- ✅ **Unit Tests**: Service logic, controller logic, exception handling (56 tests)
+- ✅ **Unit Tests**: Service logic, controller logic, exception handling (60 tests)
 - ✅ **Edge Cases**: Boundary conditions, null handling, error scenarios (12 tests)
 - ✅ **Integration Tests**: Full stack testing with H2 database (optional, 6 tests)
-- ✅ **Model Tests**: Data class validation (4 tests)
+- ✅ **Model Tests**: Data class validation (5 tests, including new validation)
 
 ## 开发 (Development)
 
@@ -541,7 +542,30 @@ Configure log levels in `logback.xml` or via environment variables.
 
 ## 版本历史 (Version History)
 
-- **v0.1.1** (Current - 2025-11-05)
+- **v0.1.2** (Current - 2025-11-06)
+  - 🔧 **Code Quality & Performance Improvements**
+    - **Pagination Optimization**: Moved history pagination from in-memory to repository level, preventing incomplete results and improving efficiency
+    - **Query Optimization**: Added date consistency filter (`TRUNC(SCHEDULED_DATETIME) = flight_date`) to reduce invalid data fetching
+    - **Method Refactoring**: Split `EsttService.calculate` into smaller, maintainable functions (`validateInputs`, `fetchAndCalculate`, `recordSuccessMetrics`, `recordFailureMetrics`)
+    - **Input Validation Enhancement**: Added `operationDays` validation in `SeasonalFlight` model (digits 1-7 only)
+    - **Code Cleanup**: Removed redundant `abs()` in duration calculations, extracted query constants to companion objects
+  - 🏷️ **Improved Error Handling & Validation**
+    - Enhanced `operationDays` validation with clear error messages
+    - Better parameter naming (`tag` → `isActive` in repository methods)
+    - Strengthened input validation for flight dates and numbers
+  - 📊 **Enhanced Testing & Coverage**
+    - Added comprehensive tests for `getPaginatedHistoryFlights` service method
+    - Added edge case tests for `operationDays` validation in models
+    - Updated existing tests for renamed methods
+    - Maintained high test coverage (112 tests, 96.4% line coverage)
+  - 🔒 **Security & Resilience**
+    - Enabled rate limiting annotation for calculation endpoint (ready for Resilience4j configuration)
+    - Improved data integrity checks in queries
+  - 📝 **Documentation Updates**
+    - Updated README with improvement details and test coverage
+    - Enhanced code comments for better maintainability
+
+- **v0.1.1** (2025-11-05)
   - 🔧 **Result Type Pattern Enhancement**
     - Added `flatMap` and `mapNotNull` extension functions for elegant Result chaining
     - Refactored service methods to use functional Result composition

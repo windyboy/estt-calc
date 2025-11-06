@@ -8,16 +8,20 @@ import io.micronaut.data.model.query.builder.sql.Dialect
 
 @JdbcRepository(dialect = Dialect.ORACLE)
 interface SeasonRepository {
+    companion object {
+        const val ACTIVE_SEASON_FLAG = 1
+        const val ARRI_OR_DEPT_ARRIVAL = 'A'
+    }
 	@Query(
 		"""
-		select 
-		SEASON_REC_ID season_id, SEASON_NAME,START_DATE season_start,END_DATE season_end 
-		from 
-		FIMS_FLIGHTSEASON flight_season 
-		where ACTIVESEASON_FLAG = :tag
+	select
+	SEASON_REC_ID season_id, SEASON_NAME,START_DATE season_start,END_DATE season_end
+	from
+	FIMS_FLIGHTSEASON flight_season
+	where ACTIVESEASON_FLAG = :isActive
 		"""
 	)
-	fun getFlightSeasonByTag(tag: Boolean): FlightSeason?
+	fun getFlightSeason(isActive: Boolean = true): FlightSeason?
 
 
 	@Query(
@@ -30,16 +34,16 @@ interface SeasonRepository {
 		 FIMS_FLIGHTSEASON flightseason 
 		 ON 
 		 seasonal_flight.SEASON_REC_ID = flightseason.SEASON_REC_ID 
-		 where 
-		 flightseason.ACTIVESEASON_FLAG = 1 
-		 and FLIGHT_NUMBER = :flightNumber 
-		 and OPERATION_DAYS 
-		 like :operationDay 
-		 and ARRI_OR_DEPT = 'A'
+		 where
+		 flightseason.ACTIVESEASON_FLAG = :activeFlag
+		 and FLIGHT_NUMBER = :flightNumber
+		 and OPERATION_DAYS
+		 like :operationDay
+		 and ARRI_OR_DEPT = :arriOrDept
 		 
 		 """
 	)
-	fun getSeasonalArrivalFlight(flightNumber: String, operationDay: String): SeasonalFlight?
+	fun getSeasonalArrivalFlight(flightNumber: String, operationDay: String, activeFlag: Int = ACTIVE_SEASON_FLAG, arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL): SeasonalFlight?
 
 }
 

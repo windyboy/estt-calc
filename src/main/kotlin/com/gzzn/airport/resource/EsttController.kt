@@ -48,12 +48,14 @@ open class EsttController(
 			content = [Content(schema = Schema(implementation = ErrorResponse::class))])
 	)
 	open fun getFlightSeason(): HttpResponse<*> {
+		log.info("Request: GET /estt/season")
 		return esttService.getActiveSeason().fold(
-			onSuccess = { season -> 
-				if (season != null) HttpResponse.ok(season) 
-				else HttpResponse.notFound<FlightSeason>() 
+			onSuccess = { season ->
+				log.info("Response: season=${season?.seasonName ?: "not found"}")
+				if (season != null) HttpResponse.ok(season)
+				else HttpResponse.notFound<FlightSeason>()
 			},
-			onFailure = { e -> 
+			onFailure = { e ->
 				log.error("Failed to get active season", e)
 				HttpResponse.serverError(
 					ErrorCode.DATABASE_ERROR.toErrorResponse(e.message ?: "Database access failed")
@@ -77,23 +79,24 @@ open class EsttController(
 		ApiResponse(responseCode = "500", description = "Database error")
 	)
 	open fun getSeasonalFlight(
-		@Parameter(description = "Flight number (e.g., MU9941)", example = "MU9941", required = true) 
-		flightNumber: String, 
+		@Parameter(description = "Flight number (e.g., MU9941)", example = "MU9941", required = true)
+		flightNumber: String,
 		@Parameter(description = "Flight date in format yyMMdd (e.g., 211231)", example = "211231", required = true)
 		flightDateString: String
 	): HttpResponse<*> {
 		val normalizedFlightNumber = flightNumber.uppercase()
 		validateFlightNumber(normalizedFlightNumber)
-		
+
 		val flightDate = esttService.parseFlightDate(flightDateString)
-		log.debug("Getting seasonal flight for $normalizedFlightNumber on $flightDate")
-		
+		log.info("Request: GET /estt/seasonal/$normalizedFlightNumber/$flightDateString -> $flightDate")
+
 		return esttService.getSeasonalFlight(normalizedFlightNumber, flightDate).fold(
-			onSuccess = { flight -> 
-				if (flight != null) HttpResponse.ok(flight) 
-				else HttpResponse.notFound<SeasonalFlight>() 
+			onSuccess = { flight ->
+				log.info("Response: seasonal flight=${flight?.flightNumber ?: "not found"}")
+				if (flight != null) HttpResponse.ok(flight)
+				else HttpResponse.notFound<SeasonalFlight>()
 			},
-			onFailure = { e -> 
+			onFailure = { e ->
 				log.error("Failed to get seasonal flight for $normalizedFlightNumber", e)
 				HttpResponse.serverError(
 					ErrorCode.DATABASE_ERROR.toErrorResponse(e.message ?: "Database access failed")
@@ -117,7 +120,7 @@ open class EsttController(
 	)
 	open fun getHistoryFlights(
 		@Parameter(description = "Flight number (e.g., MU9941)", example = "MU9941", required = true)
-		flightNumber: String, 
+		flightNumber: String,
 		@Parameter(description = "Flight date in format yyMMdd (e.g., 211231)", example = "211231", required = true)
 		flightDateString: String,
 		@Parameter(description = "Maximum number of results to return", example = "100")
@@ -127,19 +130,17 @@ open class EsttController(
 	): HttpResponse<*> {
 		val normalizedFlightNumber = flightNumber.uppercase()
 		validateFlightNumber(normalizedFlightNumber)
-		
-		log.debug("Getting history of $normalizedFlightNumber, $flightDateString")
+
 		val flightDate = esttService.parseFlightDate(flightDateString)
-		
-		return esttService.getHistoryFlights(normalizedFlightNumber, flightDate).fold(
-			onSuccess = { history -> 
-				log.debug("history size: ${history.size}")
-				// Apply pagination
-				val paginatedHistory = history.drop(offset).take(limit)
+		log.info("Request: GET /estt/history/$normalizedFlightNumber/$flightDateString limit=$limit offset=$offset")
+
+		return esttService.getPaginatedHistoryFlights(normalizedFlightNumber, flightDate, offset, limit).fold(
+			onSuccess = { paginatedHistory ->
+				log.info("Response: paginated history size=${paginatedHistory.size}")
 				HttpResponse.ok(paginatedHistory)
 			},
-			onFailure = { e -> 
-				log.error("Failed to get history flights for $normalizedFlightNumber", e)
+			onFailure = { e ->
+				log.error("Failed to get paginated history flights for $normalizedFlightNumber", e)
 				HttpResponse.serverError(
 					ErrorCode.DATABASE_ERROR.toErrorResponse(e.message ?: "Database access failed")
 				)
@@ -165,18 +166,22 @@ open class EsttController(
 	)
 	open fun calculate(
 		@Parameter(description = "Flight number (e.g., MU9941)", example = "MU9941", required = true)
-		flightNumber: String, 
+		flightNumber: String,
 		@Parameter(description = "Flight date in format yyMMdd (e.g., 211231)", example = "211231", required = true)
 		flightDateString: String
 	): HttpResponse<*> {
 		val normalizedFlightNumber = flightNumber.uppercase()
 		validateFlightNumber(normalizedFlightNumber)
-		
+
 		val flightDate = esttService.parseFlightDate(flightDateString)
-		
+		log.info("Request: GET /estt/flyTime/$normalizedFlightNumber/$flightDateString")
+
 		return esttService.calculate(normalizedFlightNumber, flightDate).fold(
-			onSuccess = { result -> HttpResponse.ok(result) },
-			onFailure = { e -> 
+			onSuccess = { result ->
+				log.info("Response: flyingTime=${result.flyingTime}, history=${result.history}, seasonal=${result.seasonal}")
+				HttpResponse.ok(result)
+			},
+			onFailure = { e ->
 				log.error("Calculation failed for $normalizedFlightNumber", e)
 				HttpResponse.serverError(
 					ErrorCode.CALCULATION_ERROR.toErrorResponse(e.message ?: "Calculation failed")

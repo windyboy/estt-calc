@@ -43,7 +43,7 @@ class EsttServiceErrorTest : DescribeSpec({
 
     describe("database failure scenarios") {
         it("should handle connection timeout in getActiveSeason") {
-            every { seasonRepository.getFlightSeasonByTag(true) } throws 
+            every { seasonRepository.getFlightSeason(true) } throws
                 SQLException("Connection timeout")
             
             val result = esttService.getActiveSeason()
@@ -53,7 +53,7 @@ class EsttServiceErrorTest : DescribeSpec({
         }
         
         it("should handle null pointer in repository call") {
-            every { seasonRepository.getFlightSeasonByTag(true) } throws 
+            every { seasonRepository.getFlightSeason(true) } throws
                 NullPointerException("Unexpected null")
             
             val result = esttService.getActiveSeason()

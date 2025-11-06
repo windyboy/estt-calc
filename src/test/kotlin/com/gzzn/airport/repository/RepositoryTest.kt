@@ -32,7 +32,7 @@ class RepositoryTest : DescribeSpec() {
     xdescribe("SeasonRepository Integration") {
         it("should get flight season by tag") {
             shouldNotThrowAny {
-                seasonRepository.getFlightSeasonByTag(true)
+                seasonRepository.getFlightSeason(true)
             }
         }
 
