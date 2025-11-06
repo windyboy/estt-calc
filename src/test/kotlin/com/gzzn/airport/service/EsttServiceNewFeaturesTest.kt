@@ -54,8 +54,8 @@ class EsttServiceNewFeaturesTest : DescribeSpec({
                 LocalDate.of(2021, 3, 28)
             )
             
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%1%") } returns seasonalFlight
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%2%") } returns seasonalFlight  // Returns same but won't match
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "1") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "2") } returns seasonalFlight  // Returns same but won't match
             
             // Monday (day 1) - should match
             val resultMonday = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 3, 29))
@@ -76,7 +76,7 @@ class EsttServiceNewFeaturesTest : DescribeSpec({
                 LocalDate.of(2021, 3, 28)
             )
             
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%1%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "1") } returns seasonalFlight
             
             // This tests the fix for false positive matching
             // Old bug: "1" would match "12" with contains()
@@ -94,7 +94,7 @@ class EsttServiceNewFeaturesTest : DescribeSpec({
                 LocalDate.of(2021, 3, 28)
             )
             
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%2%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "2") } returns seasonalFlight
             
             // Tuesday (day 2) should NOT match operation days "17"
             val result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 3, 30))
@@ -189,7 +189,7 @@ class EsttServiceNewFeaturesTest : DescribeSpec({
                 scheduledTime = LocalDateTime.of(2021, 12, 30, 11, 0)  // Wrong date!
             )
             
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns listOf(invalidFlight)
             
             val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
@@ -212,7 +212,7 @@ class EsttServiceNewFeaturesTest : DescribeSpec({
                 scheduledTime = LocalDateTime.of(2021, 12, 31, 11, 0)  // Correct date
             )
             
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns listOf(validFlight)
             
             val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
@@ -279,7 +279,7 @@ class EsttServiceNewFeaturesTest : DescribeSpec({
                 )
             }
             
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns flights
             
             val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))

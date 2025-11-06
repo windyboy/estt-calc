@@ -3,6 +3,7 @@ package com.gzzn.airport.service
 import com.gzzn.airport.model.FlightSeason
 import com.gzzn.airport.model.FlyingTimeResponse
 import com.gzzn.airport.model.HistoricalFlight
+import com.gzzn.airport.model.PaginatedHistoryResponse
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.HistoryFlightRepository
 import com.gzzn.airport.repository.SeasonRepository
@@ -41,7 +42,29 @@ open class EsttService(
 
     @PostConstruct
     fun init() {
-        log.info("EsttService initialized with maxHistoryDelay=$maxHistoryDelay, minHistoryFlight=$minHistoryFlight, historyStartOffsetDays=$historyStartOffsetDays, maxHistoryRows=$maxHistoryRows")
+        // Validate configuration values
+        require(minHistoryFlight > 0) {
+            "Configuration error: estt.calculation.min-history-flight must be positive, got: $minHistoryFlight"
+        }
+        require(maxHistoryDelay > 0) {
+            "Configuration error: estt.calculation.max-history-delay must be positive, got: $maxHistoryDelay"
+        }
+        require(maxHistoryRows > 0) {
+            "Configuration error: estt.calculation.max-history-rows must be positive, got: $maxHistoryRows"
+        }
+        require(historyStartOffsetDays >= 0) {
+            "Configuration error: estt.calculation.history-start-offset-days must be non-negative, got: $historyStartOffsetDays"
+        }
+        require(dateFormat.isNotBlank()) {
+            "Configuration error: estt.calculation.date-format must not be blank"
+        }
+        
+        log.info("✅ EsttService initialized successfully")
+        log.info("   - maxHistoryDelay: $maxHistoryDelay minutes")
+        log.info("   - minHistoryFlight: $minHistoryFlight flights")
+        log.info("   - historyStartOffsetDays: $historyStartOffsetDays days")
+        log.info("   - maxHistoryRows: $maxHistoryRows rows")
+        log.info("   - dateFormat: $dateFormat")
     }
 
     /**
@@ -105,10 +128,10 @@ open class EsttService(
      open fun getSeasonalFlight(flightNumber: String, flightDate: LocalDate): Result<SeasonalFlight?> {
          return runCatching {
              val operationDay = getOperationDay(flightDate)
-             val likeOperationDay = "%$operationDay%"
-             log.debug("Finding seasonal flight for flight number $flightNumber, operation day $operationDay (like: $likeOperationDay)")
+             log.debug("Finding seasonal flight for flight number $flightNumber, operation day $operationDay")
 
-             val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, likeOperationDay)
+             // Pass operationDay as string without wildcards (INSTR handles the search)
+             val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, operationDay.toString())
 
              // Additional validation: ensure the operation day actually matches
              // Using helper function to avoid false matches like "1" matching "12"
@@ -152,31 +175,56 @@ open class EsttService(
 
     /**
      * Get paginated historical flights for a given flight number and date.
-     * Fetches unlimited records, filters, sorts, and paginates.
+     * Filters ALL results first, then paginates to ensure consistent page sizes.
      * @param flightNumber the flight number.
      * @param flightDate the flight date.
      * @param offset the number of results to skip.
      * @param limit the maximum number of results to return.
-     * @return a list of historical flights wrapped in a Result.
+     * @return paginated response with metadata wrapped in a Result.
      */
-    open fun getPaginatedHistoryFlights(flightNumber: String, flightDate: LocalDate, offset: Int, limit: Int): Result<List<HistoricalFlight>> {
+    open fun getPaginatedHistoryFlights(flightNumber: String, flightDate: LocalDate, offset: Int, limit: Int): Result<PaginatedHistoryResponse> {
         return getSeasonalFlight(flightNumber, flightDate)
             .flatMap { seasonalFlight ->
                 if (seasonalFlight == null) {
-                    Result.success(emptyList())
+                    Result.success(PaginatedHistoryResponse(
+                        items = emptyList(),
+                        totalFiltered = 0,
+                        offset = offset,
+                        limit = limit,
+                        hasMore = false
+                    ))
                 } else {
                     runCatching {
                         val seasonStart = calculateHistoryStartDate(seasonalFlight.seasonStart)
                         log.debug("Querying paginated historical flights for ${seasonalFlight.flightNumber} from $seasonStart to $flightDate")
-                        val history = historyFlightRepository.getArrivalFlightUnlimited(seasonalFlight.flightNumber, seasonStart, flightDate)
-                        val filtered = history.asSequence()
+                        
+                        // Fetch all history
+                        val history = historyFlightRepository.getArrivalFlightUnlimited(
+                            seasonalFlight.flightNumber,
+                            seasonStart,
+                            flightDate
+                        )
+                        
+                        // Filter and sort ALL results first
+                        val allFiltered = history.asSequence()
                             .filter { isHistoryFlight(seasonalFlight, it) }
                             .sortedByDescending { it.scheduledTime }
+                            .toList()
+                        
+                        // Then paginate
+                        val paginated = allFiltered
                             .drop(offset)
                             .take(limit)
-                            .toList()
-                        log.debug("Retrieved ${history.size} historical flights, filtered and paginated to ${filtered.size}")
-                        filtered
+                        
+                        log.debug("Retrieved ${history.size} historical flights, filtered to ${allFiltered.size}, returning ${paginated.size} for page")
+                        
+                        PaginatedHistoryResponse(
+                            items = paginated,
+                            totalFiltered = allFiltered.size,
+                            offset = offset,
+                            limit = limit,
+                            hasMore = offset + limit < allFiltered.size
+                        )
                     }
                 }
             }

@@ -3,6 +3,7 @@ package com.gzzn.airport.resource
 import com.gzzn.airport.exception.ErrorResponse
 import com.gzzn.airport.model.FlightSeason
 import com.gzzn.airport.model.FlyingTimeResponse
+import com.gzzn.airport.model.PaginatedHistoryResponse
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.service.EsttService
 import io.kotest.assertions.throwables.shouldThrow
@@ -105,12 +106,15 @@ class EsttControllerTest : DescribeSpec({
             val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
             every { esttService.parseFlightDate(any()) } returns LocalDate.of(2021, 12, 31)
             every { esttService.getSeasonalFlight(any(), any()) } returns Result.success(seasonalFlight)
-            every { esttService.getPaginatedHistoryFlights(any(), any(), any(), any()) } returns Result.success(emptyList())
+            val paginatedResponse = PaginatedHistoryResponse(emptyList(), 0, 0, 100, false)
+            every { esttService.getPaginatedHistoryFlights(any(), any(), any(), any()) } returns Result.success(paginatedResponse)
 
             val response = controller.getHistoryFlights("MU9941", "211231", 100, 0)
 
             response.status shouldBe HttpStatus.OK
-            response.body() shouldBe emptyList<Any>()
+            val body = response.body() as PaginatedHistoryResponse
+            body.items shouldBe emptyList()
+            body.totalFiltered shouldBe 0
         }
 
         it("should return server error on exception") {

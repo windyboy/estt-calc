@@ -38,7 +38,7 @@ class RepositoryTest : DescribeSpec() {
 
         it("should get seasonal arrival flight") {
             shouldNotThrowAny {
-                seasonRepository.getSeasonalArrivalFlight("MU9941", "%1%")
+                seasonRepository.getSeasonalArrivalFlight("MU9941", "1")
             }
         }
     }

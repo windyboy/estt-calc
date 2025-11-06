@@ -37,8 +37,7 @@ interface SeasonRepository {
 		 where
 		 flightseason.ACTIVESEASON_FLAG = :activeFlag
 		 and FLIGHT_NUMBER = :flightNumber
-		 and OPERATION_DAYS
-		 like :operationDay
+		 and INSTR(OPERATION_DAYS, :operationDay) > 0
 		 and ARRI_OR_DEPT = :arriOrDept
 		 
 		 """

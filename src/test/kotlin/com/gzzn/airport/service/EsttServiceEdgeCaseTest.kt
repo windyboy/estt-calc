@@ -46,7 +46,7 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
             val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
             val historyFlights = createHistoryFlights(20, LocalDate.of(2021, 12, 31))
 
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns historyFlights
 
             val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
@@ -61,7 +61,7 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
             val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
             val historyFlights = createHistoryFlights(19, LocalDate.of(2021, 12, 31))
 
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns historyFlights
 
             val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
@@ -73,7 +73,7 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
         it("should reject zero seasonal flying time") {
             val seasonalFlight = SeasonalFlight("MU9941", "1234567", 0L, LocalDate.of(2021, 3, 28))
 
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns emptyList()
 
             val exception = shouldThrow<IllegalArgumentException> {
@@ -87,7 +87,7 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
         it("should match operation day at boundary") {
             val seasonalFlight = SeasonalFlight("MU9941", "17", 90L, LocalDate.of(2021, 3, 28))
 
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%1%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "1") } returns seasonalFlight
 
             val result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 1, 4)) // Monday
             
@@ -98,7 +98,7 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
         it("should filter out partial day matches") {
             val seasonalFlight = SeasonalFlight("MU9941", "27", 90L, LocalDate.of(2021, 3, 28))
 
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%1%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "1") } returns seasonalFlight
 
             val result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 1, 4)) // Monday (day 1)
             
@@ -126,7 +126,7 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
                 )
             )
 
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%2%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "2") } returns seasonalFlight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns historyFlights
 
             val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 28))
@@ -153,7 +153,7 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
                 )
             )
 
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns historyFlights
 
             val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
@@ -180,7 +180,7 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
                 )
             )
 
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns historyFlights
 
             val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
@@ -207,7 +207,7 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
                 )
             )
 
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns seasonalFlight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns historyFlights
 
             val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))

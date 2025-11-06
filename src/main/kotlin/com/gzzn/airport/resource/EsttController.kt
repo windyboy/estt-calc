@@ -3,11 +3,11 @@ package com.gzzn.airport.resource
 import com.gzzn.airport.exception.ErrorCode
 import com.gzzn.airport.exception.ErrorResponse
 import com.gzzn.airport.model.*
+import com.gzzn.airport.model.PaginatedHistoryResponse
 import com.gzzn.airport.service.EsttService
 import io.micrometer.core.annotation.Counted
 import io.micrometer.core.annotation.Timed
 import io.micronaut.context.annotation.Value
-// import io.github.resilience4j.ratelimiter.annotation.RateLimiter
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
@@ -114,8 +114,9 @@ open class EsttController(
 			"Supports optional pagination via limit and offset query parameters."
 	)
 	@ApiResponses(
-		ApiResponse(responseCode = "200", description = "History retrieved successfully"),
-		ApiResponse(responseCode = "400", description = "Invalid flight number or date format"),
+		ApiResponse(responseCode = "200", description = "History retrieved successfully",
+			content = [Content(schema = Schema(implementation = PaginatedHistoryResponse::class))]),
+		ApiResponse(responseCode = "400", description = "Invalid flight number, date format, or pagination parameters"),
 		ApiResponse(responseCode = "500", description = "Database error")
 	)
 	open fun getHistoryFlights(
@@ -128,6 +129,14 @@ open class EsttController(
 		@Parameter(description = "Number of results to skip", example = "0")
 		@QueryValue(defaultValue = "0") offset: Int
 	): HttpResponse<*> {
+		// Validate pagination parameters
+		require(limit in 1..1000) {
+			"Limit must be between 1 and 1000, got: $limit"
+		}
+		require(offset >= 0) {
+			"Offset must be non-negative, got: $offset"
+		}
+		
 		val normalizedFlightNumber = flightNumber.uppercase()
 		validateFlightNumber(normalizedFlightNumber)
 
@@ -135,9 +144,9 @@ open class EsttController(
 		log.info("Request: GET /estt/history/$normalizedFlightNumber/$flightDateString limit=$limit offset=$offset")
 
 		return esttService.getPaginatedHistoryFlights(normalizedFlightNumber, flightDate, offset, limit).fold(
-			onSuccess = { paginatedHistory ->
-				log.info("Response: paginated history size=${paginatedHistory.size}")
-				HttpResponse.ok(paginatedHistory)
+			onSuccess = { paginatedResponse ->
+				log.info("Response: total=${paginatedResponse.totalFiltered}, returned=${paginatedResponse.items.size}, hasMore=${paginatedResponse.hasMore}")
+				HttpResponse.ok(paginatedResponse)
 			},
 			onFailure = { e ->
 				log.error("Failed to get paginated history flights for $normalizedFlightNumber", e)
@@ -151,7 +160,6 @@ open class EsttController(
 	@Get(uri = "/flyTime/{flightNumber}/{flightDateString}")
 	@Timed(value = "estt.api.calculate", description = "Flying time calculation API")
 	@Counted(value = "estt.api.calculate.calls", description = "Number of calculation requests")
-	// @RateLimiter(name = "calculate-rate-limiter")  // TODO: Enable when resilience4j is properly configured
 	@Operation(
 		summary = "Calculate flying time",
 		description = "Calculates estimated flying time based on historical data or seasonal schedule. " +

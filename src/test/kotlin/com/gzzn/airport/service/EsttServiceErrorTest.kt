@@ -82,7 +82,7 @@ class EsttServiceErrorTest : DescribeSpec({
                 LocalDate.of(2021, 3, 28)
             )
             
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns flight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns flight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns emptyList()
             
             val exception = shouldThrow<IllegalArgumentException> {
@@ -99,7 +99,7 @@ class EsttServiceErrorTest : DescribeSpec({
                 LocalDate.of(2021, 3, 28)
             )
             
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns flight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns flight
             
             val result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31))
             
@@ -154,7 +154,7 @@ class EsttServiceErrorTest : DescribeSpec({
         it("should record success metrics when calculation succeeds") {
             val flight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
             
-            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns flight
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns flight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns emptyList()
             
             val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))

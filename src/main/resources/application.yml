@@ -35,6 +35,8 @@ estt:
     max-history-rows: ${MAX_HISTORY_ROWS:300}
   validation:
     flight-number-pattern: ${FLIGHT_NUMBER_PATTERN:^[A-Z]{2}[0-9]{3,4}$}
+  rate-limiting:
+    enabled: ${RATE_LIMITING_ENABLED:true}
 
 endpoints:
   health:
@@ -47,11 +49,3 @@ endpoints:
 micronaut-openapi:
   openapi:
     enabled: true
-
-resilience4j:
-  ratelimiter:
-    instances:
-      calculate-rate-limiter:
-        limit-for-period: 100
-        limit-refresh-period: 1m
-        timeout-duration: 0s
