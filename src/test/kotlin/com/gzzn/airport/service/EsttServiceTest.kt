@@ -178,6 +178,18 @@ class EsttServiceTest : DescribeSpec({
             response.history.shouldBeTrue()
             response.seasonal.shouldBeTrue()
             response.flyingTime shouldBeGreaterThan 0
+
+            meterRegistry.counter("estt.calculation.source", "source", "history").count() shouldBe 1.0
+            meterRegistry.counter("estt.calculation.success", "source", "history").count() shouldBe 1.0
+            meterRegistry.timer(
+                "estt.calculation.time",
+                "flight",
+                "MU9941",
+                "source",
+                "history",
+                "result",
+                "success",
+            ).count() shouldBe 1
         }
 
         it("should use seasonal time with insufficient history") {
@@ -202,6 +214,9 @@ class EsttServiceTest : DescribeSpec({
             response.flightNumber shouldBe "MU9941"
             response.flyingTime shouldBe 90L
             response.seasonal.shouldBeTrue()
+
+            meterRegistry.counter("estt.calculation.source", "source", "schedule").count() shouldBe 1.0
+            meterRegistry.counter("estt.calculation.success", "source", "schedule").count() shouldBe 1.0
         }
 
         it("should handle no seasonal flight") {
@@ -236,6 +251,7 @@ class EsttServiceTest : DescribeSpec({
             val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
 
             result.isFailure.shouldBeTrue()
+            meterRegistry.counter("estt.calculation.failure", "error", "RuntimeException").count() shouldBe 1.0
         }
     }
 

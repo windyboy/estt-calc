@@ -55,12 +55,19 @@ class FlyingTimeCalculator(
     /**
      * Validate seasonal flight data and calculate flying time based on provided history.
      *
-     * Algorithm:
-     * 1. Reject the seasonal record if it lacks a positive flying time.
-     * 2. Filter the raw history according to business rules (delay threshold, operation day match, etc.).
-     * 3. Use the most recent qualifying samples (up to `minHistoryFlight`) to compute an average. If
-     *    not enough samples exist, fall back to the seasonal value.
-     * 4. Record Micrometer counters to track data source choice and result accuracy.
+     * Business flow:
+     * 1. Seasonal validation — fail fast if the seasonal flying time is non-positive (enforced by [ensureValidSeasonalFlight]).
+     * 2. History screening — keep only records that (a) operate on the same weekday as the seasonal schedule,
+     *    (b) have chronological timestamps (`previousDepartureTime` < `actualTime`), (c) share their calendar day with
+     *    the scheduled arrival, (d) fall within `config.maxHistoryDelay` minutes of the seasonal flying time, and (e)
+     *    pass the delay tolerance check in [isFlightDelayAcceptable]. Remaining flights are ordered from newest to oldest.
+     * 3. Decision — when at least `config.minHistoryFlight` samples remain (default 20), compute the average flying time
+     *    using the most recent qualifying entries. Each duration is measured as `previousDepartureTime → actualTime`,
+     *    averaged with double precision and rounded to the nearest minute; otherwise we fall back to
+     *    `seasonalFlight.flyingTime`.
+     * 4. Metrics & messaging — record Micrometer counters to mark the chosen data source, track the absolute deviation
+     *    from the seasonal value, flag “high accuracy” whenever the error is ≤10 minutes, and return a human-readable
+     *    message describing the outcome.
      *
      * @param seasonalFlight validated seasonal schedule.
      * @param flightNumber normalized flight identifier (for logging and metrics tags).
