@@ -18,20 +18,35 @@ This standalone microservice implements flight duration calculation logic that c
 
 ## 算法 (Algorithm)
 
-1. 首先查询已经激活的季度计划
-2. 根据季度计划，航班的飞行日期，查询到符合运营日的季度计划航班
-3. 从季度计划开始的日期，到目前航班日期查询航班历史，历史航班必须符合运营日条件，同时不能延误太长时间
-4. 如果符合条件的历史航班数超过20（可配置），则计算平均飞行时长
-5. 如果历史航班不足，则使用季度计划飞行时长
-6. 如果无法找到季度计划，则不计算飞行时长
+1. 查询当前激活的航季计划 (`EsttService.cachedActiveSeason`)。
+2. 按航班日期推导运营日，过滤出当天有效的季节航班 (`cachedSeasonalFlight`)。
+3. 从季节开始日期往前回溯 `historyStartOffsetDays`（默认 60 天），查询历史航班，最多 `maxHistoryRows`（默认 300 条）。
+4. 逐条应用业务过滤：
+   - 运营日必须与季节计划匹配（逐位比较，防止 “1” 匹配 “12”）。
+   - `previousDepartureTime < actualTime`，避免脏数据。
+   - `scheduledTime` 的日期必须等于 `flightDate`。
+   - 实际飞行时长与季节飞行时长的差值需小于 `maxHistoryDelay`（默认 120 分钟）。
+   - 额外检查：计划 vs 实际落地时间差值也须在 `maxHistoryDelay` 内，排除异常提前/延误。
+5. 将合格样本按 `scheduledTime` 逆序排列，若数量 ≥ `minHistoryFlight`（默认 20），取最新的 `minHistoryFlight` 条计算平均飞行时长（双精度求平均后四舍五入）。
+6. 当历史样本不足时，直接使用季节航班的飞行时长作为预计值。
+7. 如果季节航班不存在，则返回飞行时长为 0，`history=false`、`seasonal=false`。
 
-**English Summary:**
-1. Query active seasonal schedule
-2. Find seasonal flights matching the operation day
-3. Query historical flights within date range and operation day constraints
-4. If sufficient qualified history (default: 20+ flights), calculate average duration
-5. Otherwise, use scheduled seasonal flight time
-6. Return zero if no seasonal schedule exists
+### English Summary
+1. Load the active seasonal schedule and pick the flight matching the operation day.
+2. Query historical arrivals between `seasonStart - historyStartOffsetDays` and the target date, capped by `maxHistoryRows`.
+3. Filter history by:
+   - matching operation day,
+   - chronological timestamps (`previousDepartureTime < actualTime`),
+   - scheduled date equals `flightDate`,
+   - actual flying time within `maxHistoryDelay` minutes of the seasonal value,
+   - arrival delay within `maxHistoryDelay`.
+4. Sort valid samples by scheduled time descending. If at least `minHistoryFlight` remain, average the latest `minHistoryFlight`; otherwise fall back to the seasonal flying time.
+5. When no seasonal schedule exists, return zero minutes with both `history` and `seasonal` set to `false`.
+
+### 实现结构 (Implementation Structure)
+- `EsttService`：对外的服务入口，负责输入校验、缓存、日志/指标采集以及结果封装。
+- `HistoryFlightProvider`：封装历史数据的查询与业务过滤逻辑，确保分页与批量模式一致。
+- `FlyingTimeCalculator`：执行平均/兜底决策并记录 Micrometer 指标（数据来源、误差、准确度）。
 
 ## 技术栈 (Technology Stack)
 
