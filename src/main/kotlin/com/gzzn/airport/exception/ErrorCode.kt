@@ -11,13 +11,14 @@ enum class ErrorCode(val code: String, val httpStatus: Int) {
     BAD_REQUEST("BAD_REQUEST", 400),
     VALIDATION_ERROR("VALIDATION_ERROR", 400),
     NOT_FOUND("NOT_FOUND", 404),
-    
+
     // Server errors (5xx)
     SYSTEM_ERROR("SYSTEM_ERROR", 500),
     DATABASE_ERROR("DATABASE_ERROR", 500),
     CALCULATION_ERROR("CALCULATION_ERROR", 500),
-    INTERNAL_ERROR("INTERNAL_ERROR", 500);
-    
+    INTERNAL_ERROR("INTERNAL_ERROR", 500),
+    ;
+
     /**
      * Create an ErrorResponse with this error code.
      * @param message the error message
@@ -28,8 +29,7 @@ enum class ErrorCode(val code: String, val httpStatus: Int) {
             status = httpStatus,
             error = code,
             message = message,
-            timestamp = Instant.now()
+            timestamp = Instant.now(),
         )
     }
 }
-

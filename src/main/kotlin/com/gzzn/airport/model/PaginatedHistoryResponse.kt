@@ -8,6 +8,5 @@ data class PaginatedHistoryResponse(
     val totalFiltered: Int,
     val offset: Int,
     val limit: Int,
-    val hasMore: Boolean
+    val hasMore: Boolean,
 )
-

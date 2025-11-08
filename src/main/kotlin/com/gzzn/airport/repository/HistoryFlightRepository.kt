@@ -6,12 +6,12 @@ import io.micronaut.data.jdbc.annotation.JdbcRepository
 import io.micronaut.data.model.query.builder.sql.Dialect
 import java.time.LocalDate
 
-
 @JdbcRepository(dialect = Dialect.ORACLE)
 interface HistoryFlightRepository {
     companion object {
         const val ARRI_OR_DEPT_ARRIVAL = 'A'
     }
+
     @Query(
         """
 SELECT
@@ -31,14 +31,14 @@ WHERE
   AND flight_date = TRUNC(SCHEDULED_DATETIME)
 ORDER BY flight_date DESC
 FETCH FIRST :maxRows ROWS ONLY
-  """
+  """,
     )
     fun getArrivalFlight(
         flightNumber: String,
         startDate: LocalDate,
         endDate: LocalDate,
         maxRows: Int = 300,
-        arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL
+        arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL,
     ): List<HistoricalFlight>
 
     @Query(
@@ -60,7 +60,7 @@ WHERE
   AND flight_date = TRUNC(SCHEDULED_DATETIME)
 ORDER BY flight_date DESC
 OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
-  """
+  """,
     )
     fun getArrivalFlightPage(
         flightNumber: String,
@@ -68,7 +68,6 @@ OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
         endDate: LocalDate,
         offset: Int,
         limit: Int,
-        arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL
+        arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL,
     ): List<HistoricalFlight>
 }
-

@@ -19,52 +19,51 @@ class RepositoryTest : DescribeSpec() {
 
     init {
 
-    xdescribe("Repository Injection - disabled") {
-        it("should inject SeasonRepository") {
-            seasonRepository.shouldNotBeNull()
-        }
+        xdescribe("Repository Injection - disabled") {
+            it("should inject SeasonRepository") {
+                seasonRepository.shouldNotBeNull()
+            }
 
-        it("should inject HistoryFlightRepository") {
-            historyFlightRepository.shouldNotBeNull()
-        }
-    }
-
-    xdescribe("SeasonRepository Integration") {
-        it("should get flight season by tag") {
-            shouldNotThrowAny {
-                seasonRepository.getFlightSeason(true)
+            it("should inject HistoryFlightRepository") {
+                historyFlightRepository.shouldNotBeNull()
             }
         }
 
-        it("should get seasonal arrival flight") {
-            shouldNotThrowAny {
-                seasonRepository.getSeasonalArrivalFlight("MU9941", "1")
+        xdescribe("SeasonRepository Integration") {
+            it("should get flight season by tag") {
+                shouldNotThrowAny {
+                    seasonRepository.getFlightSeason(true)
+                }
             }
-        }
-    }
 
-    xdescribe("HistoryFlightRepository Integration") {
-        it("should get arrival flights with date range") {
-            val startDate = LocalDate.now().minusMonths(3)
-            val endDate = LocalDate.now()
-
-            shouldNotThrowAny {
-                val flights = historyFlightRepository.getArrivalFlight("MU9941", startDate, endDate, 100)
-                flights.shouldNotBeNull()
+            it("should get seasonal arrival flight") {
+                shouldNotThrowAny {
+                    seasonRepository.getSeasonalArrivalFlight("MU9941", "1")
+                }
             }
         }
 
-        it("should respect max rows limit") {
-            val startDate = LocalDate.now().minusYears(5)
-            val endDate = LocalDate.now()
+        xdescribe("HistoryFlightRepository Integration") {
+            it("should get arrival flights with date range") {
+                val startDate = LocalDate.now().minusMonths(3)
+                val endDate = LocalDate.now()
 
-            shouldNotThrowAny {
-                val flights = historyFlightRepository.getArrivalFlight("MU9941", startDate, endDate, 10)
-                flights.shouldNotBeNull()
-                flights.size shouldBeLessThanOrEqualTo 10
+                shouldNotThrowAny {
+                    val flights = historyFlightRepository.getArrivalFlight("MU9941", startDate, endDate, 100)
+                    flights.shouldNotBeNull()
+                }
+            }
+
+            it("should respect max rows limit") {
+                val startDate = LocalDate.now().minusYears(5)
+                val endDate = LocalDate.now()
+
+                shouldNotThrowAny {
+                    val flights = historyFlightRepository.getArrivalFlight("MU9941", startDate, endDate, 10)
+                    flights.shouldNotBeNull()
+                    flights.size shouldBeLessThanOrEqualTo 10
+                }
             }
         }
-    }
     }
 }
-

@@ -19,8 +19,8 @@ class IllegalArgumentExceptionHandler : ExceptionHandler<IllegalArgumentExceptio
         log.warn("Bad request: ${exception.message}", exception)
         return HttpResponse.badRequest(
             ErrorCode.VALIDATION_ERROR.toErrorResponse(
-                exception.message ?: "Invalid request parameters"
-            )
+                exception.message ?: "Invalid request parameters",
+            ),
         )
     }
 }
@@ -35,8 +35,8 @@ class GenericExceptionHandler : ExceptionHandler<Exception, HttpResponse<ErrorRe
         log.error("Internal server error: ${exception.message}", exception)
         return HttpResponse.serverError(
             ErrorCode.INTERNAL_ERROR.toErrorResponse(
-                "An unexpected error occurred"
-            )
+                "An unexpected error occurred",
+            ),
         )
     }
 }
@@ -46,6 +46,5 @@ data class ErrorResponse(
     val status: Int,
     val error: String,
     val message: String,
-    val timestamp: java.time.Instant = java.time.Instant.now()
+    val timestamp: java.time.Instant = java.time.Instant.now(),
 )
-

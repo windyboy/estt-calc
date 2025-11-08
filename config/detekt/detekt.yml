@@ -1,0 +1,64 @@
+build:
+  maxIssues: 0
+
+config:
+  validation: true
+
+processors:
+  active: true
+
+console-reports:
+  active: true
+
+complexity:
+  LongMethod:
+    active: false
+  LargeClass:
+    active: false
+  TooManyFunctions:
+    active: false
+  LongParameterList:
+    active: false
+  CyclomaticComplexMethod:
+    active: false
+  ComplexCondition:
+    threshold: 5
+
+style:
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    active: false
+  WildcardImport:
+    active: false
+  ReturnCount:
+    max: 3
+  UnusedPrivateMember:
+    active: true
+  NewLineAtEndOfFile:
+    active: false
+  LoopWithTooManyJumpStatements:
+    active: false
+
+naming:
+  PackageNaming:
+    active: false
+  MatchingDeclarationName:
+    active: false
+  VariableNaming:
+    active: false
+
+exceptions:
+  SwallowedException:
+    active: false
+  TooGenericExceptionCaught:
+    active: false
+  TooGenericExceptionThrown:
+    active: false
+
+performance:
+  ForEachOnRange:
+    active: false
+  SpreadOperator:
+    active: false
+

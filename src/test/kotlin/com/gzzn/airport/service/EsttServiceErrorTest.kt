@@ -5,7 +5,6 @@ import com.gzzn.airport.repository.HistoryFlightRepository
 import com.gzzn.airport.repository.SeasonRepository
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -27,7 +26,7 @@ class EsttServiceErrorTest : DescribeSpec({
         seasonRepository = mockk()
         historyFlightRepository = mockk()
         meterRegistry = SimpleMeterRegistry()
-        
+
         esttService = EsttService(
             seasonRepository,
             historyFlightRepository,
@@ -36,7 +35,7 @@ class EsttServiceErrorTest : DescribeSpec({
             20,
             "yyMMdd",
             60L,
-            300
+            300,
         )
         esttService.init()
     }
@@ -45,29 +44,29 @@ class EsttServiceErrorTest : DescribeSpec({
         it("should handle connection timeout in getActiveSeason") {
             every { seasonRepository.getFlightSeason(true) } throws
                 SQLException("Connection timeout")
-            
+
             val result = esttService.getActiveSeason()
-            
+
             result.isFailure.shouldBeTrue()
             result.exceptionOrNull().shouldBeInstanceOf<SQLException>()
         }
-        
+
         it("should handle null pointer in repository call") {
             every { seasonRepository.getFlightSeason(true) } throws
                 NullPointerException("Unexpected null")
-            
+
             val result = esttService.getActiveSeason()
-            
+
             result.isFailure.shouldBeTrue()
             result.exceptionOrNull().shouldBeInstanceOf<NullPointerException>()
         }
-        
+
         it("should handle database error in getSeasonalFlight") {
-            every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } throws 
+            every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } throws
                 SQLException("Database unavailable")
-            
+
             val result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31))
-            
+
             result.isFailure.shouldBeTrue()
             result.exceptionOrNull().shouldBeInstanceOf<SQLException>()
         }
@@ -75,34 +74,36 @@ class EsttServiceErrorTest : DescribeSpec({
 
     describe("data inconsistency scenarios") {
         it("should reject zero flyingTime in seasonal flight") {
+            // zero flying time should be treated as invalid configuration.
             val flight = SeasonalFlight(
                 "MU9941",
                 "1234567",
-                0L,  // zero flying time - invalid
-                LocalDate.of(2021, 3, 28)
+                0L,
+                LocalDate.of(2021, 3, 28),
             )
-            
+
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns flight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns emptyList()
-            
+
             val exception = shouldThrow<IllegalArgumentException> {
                 esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
             }
             exception.message shouldBe "Invalid seasonal flight time: 0 for flight MU9941"
         }
-        
+
         it("should handle empty operation days") {
+            // empty operation days should fail validation.
             val flight = SeasonalFlight(
                 "MU9941",
-                "",  // empty operation days
+                "",
                 90L,
-                LocalDate.of(2021, 3, 28)
+                LocalDate.of(2021, 3, 28),
             )
-            
+
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns flight
-            
+
             val result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31))
-            
+
             // Flight with Friday operation day should not match empty operation days
             result.isSuccess.shouldBeTrue()
             result.getOrNull() shouldBe null
@@ -112,55 +113,55 @@ class EsttServiceErrorTest : DescribeSpec({
     describe("edge case scenarios") {
         it("should handle very old historical data query") {
             val veryOldDate = LocalDate.of(2000, 1, 1)
-            
+
             every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } returns null
-            
+
             val result = esttService.getHistoryFlights("MU9941", veryOldDate)
-            
+
             result.isSuccess.shouldBeTrue()
             result.getOrNull() shouldBe emptyList()
         }
-        
+
         it("should reject far future date query") {
             val futureDate = LocalDate.of(2030, 12, 31)
-            
+
             val exception = shouldThrow<IllegalArgumentException> {
                 esttService.calculate("MU9941", futureDate)
             }
             exception.message shouldBe "Flight date cannot be more than 1 year in the future, got: $futureDate"
         }
-        
+
         it("should handle invalid flight number in calculate") {
             val exception = kotlin.runCatching {
                 esttService.calculate("", LocalDate.now())
             }.exceptionOrNull()
-            
+
             exception.shouldBeInstanceOf<IllegalArgumentException>()
         }
-        
+
         it("should record failure metrics when calculation fails") {
-            every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } throws 
+            every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } throws
                 SQLException("DB Error")
-            
+
             val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
-            
+
             result.isFailure.shouldBeTrue()
-            
+
             // Verify metrics were recorded
             val failureCounter = meterRegistry.counter("estt.calculation.failure", "error", "SQLException")
             failureCounter.count() shouldBe 1.0
         }
-        
+
         it("should record success metrics when calculation succeeds") {
             val flight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
-            
+
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns flight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns emptyList()
-            
+
             val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
-            
+
             result.isSuccess.shouldBeTrue()
-            
+
             // Verify metrics were recorded
             val successCounter = meterRegistry.counter("estt.calculation.success", "source", "schedule")
             successCounter.count() shouldBe 1.0
@@ -169,24 +170,23 @@ class EsttServiceErrorTest : DescribeSpec({
 
     describe("flatMap error propagation") {
         it("should propagate seasonal flight lookup failure to history flights") {
-            every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } throws 
+            every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } throws
                 SQLException("DB Error")
-            
+
             val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
-            
+
             result.isFailure.shouldBeTrue()
             result.exceptionOrNull().shouldBeInstanceOf<SQLException>()
         }
-        
+
         it("should propagate seasonal flight lookup failure to calculate") {
-            every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } throws 
+            every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } throws
                 RuntimeException("Unexpected error")
-            
+
             val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
-            
+
             result.isFailure.shouldBeTrue()
             result.exceptionOrNull().shouldBeInstanceOf<RuntimeException>()
         }
     }
 })
-

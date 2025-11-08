@@ -90,7 +90,7 @@ class EsttControllerTest : DescribeSpec({
 
         it("should return server error on exception") {
             every { esttService.parseFlightDate("211231") } returns LocalDate.of(2021, 12, 31)
-            every { esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31)) } returns 
+            every { esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31)) } returns
                 Result.failure(RuntimeException("DB error"))
 
             val response = controller.getSeasonalFlight("MU9941", "211231")
@@ -144,7 +144,7 @@ class EsttControllerTest : DescribeSpec({
 
         it("should return server error on exception") {
             every { esttService.parseFlightDate("211231") } returns LocalDate.of(2021, 12, 31)
-            every { esttService.calculate("MU9941", LocalDate.of(2021, 12, 31)) } returns 
+            every { esttService.calculate("MU9941", LocalDate.of(2021, 12, 31)) } returns
                 Result.failure(RuntimeException("Calculation error"))
 
             val response = controller.calculate("MU9941", "211231")
@@ -208,4 +208,3 @@ class EsttControllerTest : DescribeSpec({
         }
     }
 })
-

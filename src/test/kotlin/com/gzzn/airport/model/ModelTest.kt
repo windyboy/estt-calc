@@ -15,7 +15,7 @@ class ModelTest : DescribeSpec({
                 1L,
                 "2021-Summer",
                 LocalDate.of(2021, 3, 28),
-                LocalDate.of(2021, 10, 30)
+                LocalDate.of(2021, 10, 30),
             )
 
             season.seasonId shouldBe 1L
@@ -31,7 +31,7 @@ class ModelTest : DescribeSpec({
                 "MU9941",
                 "1234567",
                 90L,
-                LocalDate.of(2021, 3, 28)
+                LocalDate.of(2021, 3, 28),
             )
 
             flight.flightNumber shouldBe "MU9941"
@@ -59,7 +59,7 @@ class ModelTest : DescribeSpec({
                 LocalDate.of(2021, 12, 31),
                 LocalDateTime.of(2021, 12, 31, 10, 0),
                 LocalDateTime.of(2021, 12, 31, 11, 30),
-                LocalDateTime.of(2021, 12, 31, 11, 0)
+                LocalDateTime.of(2021, 12, 31, 11, 0),
             )
 
             flight.flightDate shouldBe LocalDate.of(2021, 12, 31)
@@ -77,7 +77,7 @@ class ModelTest : DescribeSpec({
                 90L,
                 true,
                 true,
-                "Test message"
+                "Test message",
             )
 
             response.flightNumber shouldBe "MU9941"
@@ -89,4 +89,3 @@ class ModelTest : DescribeSpec({
         }
     }
 })
-

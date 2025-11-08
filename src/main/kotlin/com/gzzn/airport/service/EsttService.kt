@@ -34,7 +34,7 @@ open class EsttService(
     @Value("\${estt.calculation.min-history-flight:20}") val minHistoryFlight: Int,
     @Value("\${estt.calculation.date-format}") val dateFormat: String,
     @Value("\${estt.calculation.history-start-offset-days}") val historyStartOffsetDays: Long,
-    @Value("\${estt.calculation.max-history-rows:300}") val maxHistoryRows: Int
+    @Value("\${estt.calculation.max-history-rows:300}") val maxHistoryRows: Int,
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(EsttService::class.java)
@@ -58,7 +58,7 @@ open class EsttService(
         require(dateFormat.isNotBlank()) {
             "Configuration error: estt.calculation.date-format must not be blank"
         }
-        
+
         log.info("✅ EsttService initialized successfully")
         log.info("   - maxHistoryDelay: $maxHistoryDelay minutes")
         log.info("   - minHistoryFlight: $minHistoryFlight flights")
@@ -122,41 +122,46 @@ open class EsttService(
 
     /**
      * Find a seasonal flight for a given flight number and date.
-      * Cached for 4 hours since seasonal schedules rarely change.
-      * Fast-fail circuit breaker: 10 attempts with 500ms delay, giving database 5 seconds total.
-      * @param flightNumber the flight number.
-      * @param flightDate the flight date.
-      * @return the seasonal flight if found, null otherwise, wrapped in a Result.
-      */
-     @Cacheable("seasonal-flight")
-     @CircuitBreaker(attempts = "10", delay = "500ms", reset = "60s")
-     open fun cachedSeasonalFlight(flightNumber: String, flightDate: LocalDate): SeasonalFlight? {
-         val operationDay = getOperationDay(flightDate)
-         log.debug("Finding seasonal flight for flight number $flightNumber, operation day $operationDay")
+     * Cached for 4 hours since seasonal schedules rarely change.
+     * Fast-fail circuit breaker: 10 attempts with 500ms delay, giving database 5 seconds total.
+     * @param flightNumber the flight number.
+     * @param flightDate the flight date.
+     * @return the seasonal flight if found, null otherwise, wrapped in a Result.
+     */
+    @Cacheable("seasonal-flight")
+    @CircuitBreaker(attempts = "10", delay = "500ms", reset = "60s")
+    open fun cachedSeasonalFlight(flightNumber: String, flightDate: LocalDate): SeasonalFlight? {
+        val operationDay = getOperationDay(flightDate)
+        log.debug("Finding seasonal flight for flight number $flightNumber, operation day $operationDay")
 
-         // Pass operationDay as string without wildcards (INSTR handles the search)
-         val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, operationDay.toString())
+        // Pass operationDay as string without wildcards (INSTR handles the search)
+        val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, operationDay.toString())
 
-         // Additional validation: ensure the operation day actually matches
-         // Using helper function to avoid false matches like "1" matching "12"
-         val validatedFlight = seasonalFlight?.takeIf {
-             isOperationDayMatch(it.operationDays, operationDay)
-         }
+        // Additional validation: ensure the operation day actually matches
+        // Using helper function to avoid false matches like "1" matching "12"
+        val validatedFlight = seasonalFlight?.takeIf {
+            isOperationDayMatch(it.operationDays, operationDay)
+        }
 
-         if (seasonalFlight != null && validatedFlight == null) {
-             log.warn("Seasonal flight found but operation day validation failed: flight=$flightNumber, day=$operationDay, operationDays=${seasonalFlight.operationDays}")
-         }
+        if (seasonalFlight != null && validatedFlight == null) {
+            log.warn(
+                "Seasonal flight found but operation day validation failed: flight={}, day={}, operationDays={}",
+                flightNumber,
+                operationDay,
+                seasonalFlight.operationDays,
+            )
+        }
 
-         log.debug("Validated seasonal flight: {}", validatedFlight)
-         return validatedFlight
-     }
+        log.debug("Validated seasonal flight: {}", validatedFlight)
+        return validatedFlight
+    }
 
-     open fun getSeasonalFlight(flightNumber: String, flightDate: LocalDate): Result<SeasonalFlight?> {
-         return runCatching { cachedSeasonalFlight(flightNumber, flightDate) }
-             .onFailure { e ->
-                 log.error("Error finding seasonal flight for $flightNumber on $flightDate", e)
-             }
-     }
+    open fun getSeasonalFlight(flightNumber: String, flightDate: LocalDate): Result<SeasonalFlight?> {
+        return runCatching { cachedSeasonalFlight(flightNumber, flightDate) }
+            .onFailure { e ->
+                log.error("Error finding seasonal flight for $flightNumber on $flightDate", e)
+            }
+    }
 
     /**
      * Get historical flights for a given flight number and date.
@@ -193,7 +198,12 @@ open class EsttService(
      * @param limit the maximum number of filtered results to return.
      * @return paginated response with metadata wrapped in a Result.
      */
-    open fun getPaginatedHistoryFlights(flightNumber: String, flightDate: LocalDate, offset: Int, limit: Int): Result<PaginatedHistoryResponse> {
+    open fun getPaginatedHistoryFlights(
+        flightNumber: String,
+        flightDate: LocalDate,
+        offset: Int,
+        limit: Int,
+    ): Result<PaginatedHistoryResponse> {
         return runCatching {
             val seasonalFlight = cachedSeasonalFlight(flightNumber, flightDate)
             if (seasonalFlight == null) {
@@ -202,14 +212,33 @@ open class EsttService(
                     totalFiltered = 0,
                     offset = offset,
                     limit = limit,
-                    hasMore = false
+                    hasMore = false,
                 )
             }
 
             val paginated = loadPaginatedHistory(seasonalFlight, flightDate, offset, limit)
             log.debug(
-                "Paginated history for ${seasonalFlight.flightNumber}: returned=${paginated.items.size}, totalFiltered=${paginated.totalFiltered}, hasMore=${paginated.hasMore}"
+                "Paginated history for {}: returned={}, totalFiltered={}, hasMore={}, offset={}, limit={}, capped={}",
+                seasonalFlight.flightNumber,
+                paginated.items.size,
+                paginated.totalFiltered,
+                paginated.hasMore,
+                offset,
+                limit,
+                paginated.totalFiltered >= maxHistoryRows,
             )
+            recordPaginatedHistoryMetrics(paginated, offset, limit)
+            if (paginated.hasMore || paginated.totalFiltered >= maxHistoryRows) {
+                log.info(
+                    "History pagination truncated for {}: hasMore={}, filtered={}, offset={}, limit={}, maxRows={}",
+                    seasonalFlight.flightNumber,
+                    paginated.hasMore,
+                    paginated.totalFiltered,
+                    offset,
+                    limit,
+                    maxHistoryRows,
+                )
+            }
             paginated
         }.onFailure { e ->
             log.error("Error getting paginated history flights for $flightNumber on $flightDate", e)
@@ -222,10 +251,7 @@ open class EsttService(
      * @param flightDate the flight date.
      * @return a list of historical flights wrapped in a Result.
      */
-    private fun getHistoryFlightsWithSeasonFlight(
-        seasonalFlight: SeasonalFlight?,
-        flightDate: LocalDate
-    ): Result<List<HistoricalFlight>> {
+    private fun getHistoryFlightsWithSeasonFlight(seasonalFlight: SeasonalFlight?, flightDate: LocalDate): Result<List<HistoricalFlight>> {
         return runCatching {
             if (seasonalFlight == null) {
                 log.warn("seasonal flight is null, no history flight")
@@ -237,23 +263,30 @@ open class EsttService(
         }
     }
 
-    private fun loadHistoryFlightsWithSeasonFlight(
-        seasonalFlight: SeasonalFlight,
-        flightDate: LocalDate
-    ): List<HistoricalFlight> {
+    private fun loadHistoryFlightsWithSeasonFlight(seasonalFlight: SeasonalFlight, flightDate: LocalDate): List<HistoricalFlight> {
         val seasonStart = calculateHistoryStartDate(seasonalFlight.seasonStart)
-        log.debug("Querying historical flights for ${seasonalFlight.flightNumber} from $seasonStart to $flightDate")
+        log.debug(
+            "Querying historical flights for {} from {} to {}",
+            seasonalFlight.flightNumber,
+            seasonStart,
+            flightDate,
+        )
+        // Fetch max records from configuration to avoid unbounded history scans.
         val historyFlights = historyFlightRepository.getArrivalFlight(
             seasonalFlight.flightNumber,
             seasonStart,
             flightDate,
-            maxHistoryRows  // Fetch max records from configuration
+            maxHistoryRows,
         )
         // Filter the historical flights to include only those that match the criteria
         val filtered = historyFlights.asSequence()
             .filter { historyFlight -> isHistoryFlight(seasonalFlight, historyFlight) }
             .toList()
-        log.debug("Retrieved ${historyFlights.size} historical flights, filtered to ${filtered.size} valid flights")
+        log.debug(
+            "Retrieved {} historical flights, filtered to {} valid flights",
+            historyFlights.size,
+            filtered.size,
+        )
         return filtered
     }
 
@@ -267,22 +300,23 @@ open class EsttService(
         seasonalFlight: SeasonalFlight,
         flightDate: LocalDate,
         offset: Int,
-        limit: Int
+        limit: Int,
     ): PaginatedHistoryResponse {
         val seasonStart = calculateHistoryStartDate(seasonalFlight.seasonStart)
         val items = mutableListOf<HistoricalFlight>()
         var totalFiltered = 0
+        var hasMore = false
         var rawOffset = 0
         val chunkSize = maxOf(limit, 100)
 
-        while (rawOffset < maxHistoryRows) {
+        while (rawOffset < maxHistoryRows && !hasMore) {
             val fetchSize = minOf(chunkSize, maxHistoryRows - rawOffset)
             val batch = historyFlightRepository.getArrivalFlightPage(
                 seasonalFlight.flightNumber,
                 seasonStart,
                 flightDate,
                 rawOffset,
-                fetchSize
+                fetchSize,
             )
             if (batch.isEmpty()) {
                 break
@@ -300,41 +334,78 @@ open class EsttService(
                     }
                     else -> {
                         totalFiltered++
+                        hasMore = true
+                        break
                     }
                 }
             }
 
-            if (batch.size < fetchSize) {
+            if (!hasMore && batch.size < fetchSize) {
                 break
             }
         }
 
+        val reportedTotal = if (hasMore) offset + items.size + 1 else totalFiltered
+
         return PaginatedHistoryResponse(
             items = items,
-            totalFiltered = totalFiltered,
+            totalFiltered = reportedTotal,
             offset = offset,
             limit = limit,
-            hasMore = totalFiltered > offset + items.size
+            hasMore = hasMore || reportedTotal > offset + items.size,
         )
+    }
+
+    private fun recordPaginatedHistoryMetrics(response: PaginatedHistoryResponse, offset: Int, limit: Int) {
+        val hasMoreTag = response.hasMore.toString()
+        val cappedTag = (response.totalFiltered >= maxHistoryRows).toString()
+
+        meterRegistry.counter(
+            "estt.history.pagination.calls",
+            "hasMore",
+            hasMoreTag,
+            "capped",
+            cappedTag,
+        ).increment()
+
+        meterRegistry.summary(
+            "estt.history.pagination.items",
+            "hasMore",
+            hasMoreTag,
+        ).record(response.items.size.toDouble())
+
+        meterRegistry.summary(
+            "estt.history.pagination.filtered",
+            "capped",
+            cappedTag,
+        ).record(response.totalFiltered.toDouble())
+
+        meterRegistry.summary(
+            "estt.history.pagination.limit",
+        ).record(limit.toDouble())
+
+        meterRegistry.summary(
+            "estt.history.pagination.offset",
+        ).record(offset.toDouble())
     }
 
     /**
      * Validates if a historical flight should be included in flying time calculation.
-     * 
+     *
      * This method implements critical business logic for filtering flights. A flight is valid
      * if ALL of the following conditions are met:
-     * 
+     *
      * 1. **Operation day matches the seasonal schedule**: Ensures we only use flights that operated
      *    on the same day of week as the target flight. This prevents using data from different
      *    flight plans (e.g., weekday vs. weekend schedules may have different routes/times).
-     * 
+     *
      * 2. **Flight time order is correct**: Validates that previousDepartureTime < actualTime.
      *    This filters out data corruption or incorrect records in the database.
-     * 
+     *
      * 3. **Flying time is within maxHistoryDelay of seasonal time**: Excludes extreme delays,
      *    diversions, or abnormal flights. Only flights with flying times reasonably close to
      *    the scheduled time are used for calculation (default: within 120 minutes).
-     * 
+     *
      * @param seasonalFlight the seasonal schedule flight to compare against (contains operation days and expected flying time)
      * @param historyFlight the historical flight to validate
      * @return true if the flight should be included in calculations, false if it should be excluded
@@ -359,11 +430,13 @@ open class EsttService(
 
         // Only log excluded flights to reduce log volume
         if (!result && log.isDebugEnabled) {
-            log.debug("Excluded history flight on ${historyFlight.flightDate}: " +
-                     "dayMatch=$operationDayMatches, timeOrder=$flightTimeOrderCorrect, " +
-                     "dateMatch=$scheduledDateMatches, withinDelay=$withinMaxDelay")
+            log.debug(
+                "Excluded history flight on ${historyFlight.flightDate}: " +
+                    "dayMatch=$operationDayMatches, timeOrder=$flightTimeOrderCorrect, " +
+                    "dateMatch=$scheduledDateMatches, withinDelay=$withinMaxDelay",
+            )
         }
-        
+
         return result
     }
 
@@ -424,11 +497,16 @@ open class EsttService(
                 if (seasonalFlight == null) {
                     // Business case: no seasonal flight found
                     log.warn("No seasonal flight found")
-                    Result.success(FlyingTimeResponse(
-                        flightNumber, flightDate, 0, false,
-                        seasonal = false,
-                        message = "No seasonal flight found"
-                    ))
+                    Result.success(
+                        FlyingTimeResponse(
+                            flightNumber,
+                            flightDate,
+                            0,
+                            false,
+                            seasonal = false,
+                            message = "No seasonal flight found",
+                        ),
+                    )
                 } else {
                     calculateWithSeasonalFlight(seasonalFlight, flightNumber, flightDate)
                 }
@@ -442,15 +520,21 @@ open class EsttService(
      * @param response the response.
      */
     private fun recordSuccessMetrics(timer: Timer.Sample, flightNumber: String, response: FlyingTimeResponse) {
-        timer.stop(meterRegistry.timer(
-            "estt.calculation.time",
-            "flight", flightNumber,
-            "source", if (response.history) "history" else "schedule",
-            "result", "success"
-        ))
+        timer.stop(
+            meterRegistry.timer(
+                "estt.calculation.time",
+                "flight",
+                flightNumber,
+                "source",
+                if (response.history) "history" else "schedule",
+                "result",
+                "success",
+            ),
+        )
         meterRegistry.counter(
             "estt.calculation.success",
-            "source", if (response.history) "history" else "schedule"
+            "source",
+            if (response.history) "history" else "schedule",
         ).increment()
     }
 
@@ -460,14 +544,19 @@ open class EsttService(
      * @param exception the exception.
      */
     private fun recordFailureMetrics(timer: Timer.Sample, exception: Throwable) {
-        timer.stop(meterRegistry.timer(
-            "estt.calculation.time",
-            "result", "failure",
-            "error", exception.javaClass.simpleName
-        ))
+        timer.stop(
+            meterRegistry.timer(
+                "estt.calculation.time",
+                "result",
+                "failure",
+                "error",
+                exception.javaClass.simpleName,
+            ),
+        )
         meterRegistry.counter(
             "estt.calculation.failure",
-            "error", exception.javaClass.simpleName
+            "error",
+            exception.javaClass.simpleName,
         ).increment()
         log.error("Flying time calculation failed", exception)
     }
@@ -482,7 +571,7 @@ open class EsttService(
     private fun calculateWithSeasonalFlight(
         seasonalFlight: SeasonalFlight,
         flightNumber: String,
-        flightDate: LocalDate
+        flightDate: LocalDate,
     ): Result<FlyingTimeResponse> {
         // Validate seasonal flight has valid flying time
         validateSeasonalFlight(seasonalFlight, flightNumber)
@@ -494,7 +583,12 @@ open class EsttService(
                 val historyExists = qualifiedFlights.isNotEmpty()
 
                 FlyingTimeResponse(
-                    flightNumber, flightDate, flyingTime, historyExists, true, message
+                    flightNumber,
+                    flightDate,
+                    flyingTime,
+                    historyExists,
+                    true,
+                    message,
                 )
             }
     }
@@ -520,7 +614,7 @@ open class EsttService(
     private fun determineFlyingTimeAndMessage(
         qualifiedFlights: List<HistoricalFlight>,
         seasonalFlight: SeasonalFlight,
-        flightNumber: String
+        flightNumber: String,
     ): Pair<Long, String> {
         val shouldUseHistoricalAverage = qualifiedFlights.size >= minHistoryFlight
 
@@ -530,7 +624,13 @@ open class EsttService(
             val flightsUsed = minOf(qualifiedFlights.size, minHistoryFlight)
             val flyingTime = calculateAverageFlightTime(qualifiedFlights)
             val message = "Calculated from $flightsUsed historical flights (${qualifiedFlights.size} available)"
-            log.info("$flightNumber: Calculated flying time $flyingTime minutes from $flightsUsed of ${qualifiedFlights.size} historical flights")
+            log.info(
+                "{}: Calculated flying time {} minutes from {} of {} historical flights",
+                flightNumber,
+                flyingTime,
+                flightsUsed,
+                qualifiedFlights.size,
+            )
 
             // Record business metrics
             meterRegistry.counter("estt.calculation.source", "source", "history").increment()
@@ -544,7 +644,13 @@ open class EsttService(
         } else {
             val flyingTime = seasonalFlight.flyingTime
             val message = "Using seasonal flight flying time due to insufficient historical data"
-            log.warn("$flightNumber: Insufficient history (${qualifiedFlights.size}/${minHistoryFlight}). Using seasonal time: $flyingTime minutes")
+            log.warn(
+                "{}: Insufficient history ({}/{}). Using seasonal time: {} minutes",
+                flightNumber,
+                qualifiedFlights.size,
+                minHistoryFlight,
+                flyingTime,
+            )
 
             // Record business metrics
             meterRegistry.counter("estt.calculation.source", "source", "schedule").increment()

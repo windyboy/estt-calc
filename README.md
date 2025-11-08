@@ -77,6 +77,9 @@ cd estt-calc-kotlin
 
 # Create distribution packages
 ./gradlew assembleDist
+
+# Run quality checks (tests + detekt + spotless)
+./gradlew check
 ```
 
 ### Build Artifacts
@@ -150,6 +153,7 @@ Configuration can be set via environment variables or the `application.yml` file
 
 > Notes:
 > - The paginated history endpoint now pages directly at the repository layer and will never scan more than `MAX_HISTORY_ROWS` records for a request.
+> - `totalFiltered` reflects the number of filtered records scanned so far (bounded by `MAX_HISTORY_ROWS`). When `hasMore=true`, use `offset + limit` to request the next window.
 > - Delay filtering uses the absolute difference between scheduled and actual times to discard extreme early/late arrivals from calculations.
 
 ### 配置文件示例 (Configuration Example)
@@ -218,6 +222,27 @@ GET /estt/history/{flightNumber}/{flightDate}
 > - Results are paginated at the database layer to avoid loading the entire season into memory.
 > - The service scans at most `MAX_HISTORY_ROWS` records per request; use `limit/offset` to walk the history window.
 > - Filtering (operation day, schedule alignment, delay threshold) is applied before pagination metadata is computed.
+> - When `hasMore=true`, request the next page by increasing `offset` by the previous `limit`.
+
+**Example**
+
+```bash
+curl "http://localhost:8080/estt/history/MU9941/211231?limit=5&offset=10"
+```
+
+```json
+{
+  "items": [
+    // ... trimmed for brevity ...
+  ],
+  "totalFiltered": 16,
+  "offset": 10,
+  "limit": 5,
+  "hasMore": true
+}
+```
+
+`totalFiltered` is best-effort — it represents the number of matching flights scanned in the current request (plus one extra when `hasMore=true`).
 
 ### 4. 计算飞行时长 (Calculate Flying Time) - 核心功能
 
@@ -289,6 +314,15 @@ GET /prometheus
 ```
 
 Returns metrics in Prometheus format for monitoring
+
+### Pagination Metrics
+
+- `estt.history.pagination.calls{hasMore,capped}` – invocation counter tagged with whether a response was truncated or capped.
+- `estt.history.pagination.items{hasMore}` – distribution summary of returned items per page.
+- `estt.history.pagination.filtered{capped}` – distribution summary of filtered records scanned per request.
+- `estt.history.pagination.limit` / `estt.history.pagination.offset` – distribution summaries for requested pagination window sizes.
+
+When logs contain `History pagination truncated`, the returned page did not include all available rows. Clients should request the next page using the reported `offset + limit`.
 
 ### API Documentation (Swagger UI)
 
