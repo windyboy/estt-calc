@@ -60,6 +60,7 @@ class EsttServiceValidationAndMatchingTest : DescribeSpec({
                 "1",
                 90L,
                 LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
             )
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "1") } returns seasonalFlight
@@ -80,6 +81,7 @@ class EsttServiceValidationAndMatchingTest : DescribeSpec({
                 "12",
                 90L,
                 LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
             )
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "1") } returns seasonalFlight
@@ -95,6 +97,7 @@ class EsttServiceValidationAndMatchingTest : DescribeSpec({
                 "17",
                 90L,
                 LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
             )
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "2") } returns seasonalFlight
@@ -110,6 +113,7 @@ class EsttServiceValidationAndMatchingTest : DescribeSpec({
                 "12345",
                 90L,
                 LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
             )
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", any()) } returns seasonalFlight
@@ -117,6 +121,22 @@ class EsttServiceValidationAndMatchingTest : DescribeSpec({
             val result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 3, 31))
             result.isSuccess.shouldBeTrue()
             result.getOrNull() shouldBe seasonalFlight
+        }
+
+        it("should ignore seasonal flights outside the season window") {
+            val seasonalFlight = SeasonalFlight(
+                "MU9941",
+                "1234567",
+                90L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 9, 30),
+            )
+
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", any()) } returns seasonalFlight
+
+            val result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31))
+            result.isSuccess.shouldBeTrue()
+            result.getOrNull().shouldBeNull()
         }
     }
 
@@ -163,6 +183,7 @@ class EsttServiceValidationAndMatchingTest : DescribeSpec({
                 "1234567",
                 90L,
                 LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
             )
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", any()) } returns seasonalFlight
@@ -180,6 +201,7 @@ class EsttServiceValidationAndMatchingTest : DescribeSpec({
                 "5",
                 90L,
                 LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
             )
 
             val invalidFlight = HistoricalFlight(
@@ -203,6 +225,7 @@ class EsttServiceValidationAndMatchingTest : DescribeSpec({
                 "5",
                 90L,
                 LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
             )
 
             val validFlight = HistoricalFlight(

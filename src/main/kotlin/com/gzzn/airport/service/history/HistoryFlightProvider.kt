@@ -86,11 +86,12 @@ class HistoryFlightProvider(
         val seasonStart = calculateHistoryStartDate(seasonalFlight.seasonStart)
         val items = mutableListOf<HistoricalFlight>()
         var totalFiltered = 0
-        var hasMore = false
+        var observedMore = false
         var rawOffset = 0
+        var truncatedByScanLimit = false
         val chunkSize = maxOf(limit, 100)
 
-        while (rawOffset < config.maxHistoryRows && !hasMore) {
+        while (rawOffset < config.maxHistoryRows) {
             val fetchSize = minOf(chunkSize, config.maxHistoryRows - rawOffset)
             val batch = historyFlightRepository.getArrivalFlightPage(
                 seasonalFlight.flightNumber,
@@ -107,32 +108,39 @@ class HistoryFlightProvider(
 
             val filteredBatch = batch.filter { isHistoryFlight(seasonalFlight, it) }
             for (flight in filteredBatch) {
-                when {
-                    totalFiltered < offset -> totalFiltered++
-                    items.size < limit -> {
-                        items += flight
-                        totalFiltered++
-                    }
-                    else -> {
-                        totalFiltered++
-                        hasMore = true
-                        break
-                    }
+                val currentIndex = totalFiltered
+                totalFiltered++
+
+                if (currentIndex < offset) {
+                    continue
+                }
+
+                if (items.size < limit) {
+                    items += flight
+                } else {
+                    observedMore = true
                 }
             }
 
-            if (!hasMore && batch.size < fetchSize) {
+            if (rawOffset >= config.maxHistoryRows && batch.size == fetchSize &&
+                totalFiltered > offset + items.size
+            ) {
+                truncatedByScanLimit = true
+            }
+
+            if (batch.size < fetchSize) {
                 break
             }
         }
 
-        val reportedTotal = if (hasMore) offset + items.size + 1 else totalFiltered
+        val reportedTotal = minOf(totalFiltered, config.maxHistoryRows)
+        val hasMore = observedMore || reportedTotal > offset + items.size || truncatedByScanLimit
         val response = PaginatedHistoryResponse(
             items = items,
             totalFiltered = reportedTotal,
             offset = offset,
             limit = limit,
-            hasMore = hasMore || reportedTotal > offset + items.size,
+            hasMore = hasMore,
         )
         recordPaginatedHistoryMetrics(response, offset, limit)
         return response

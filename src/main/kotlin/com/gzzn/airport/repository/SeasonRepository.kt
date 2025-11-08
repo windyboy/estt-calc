@@ -35,21 +35,22 @@ interface SeasonRepository {
      */
     @Query(
         """
-		 select
-		 seasonal_flight.FLIGHT_NUMBER,seasonal_flight.OPERATION_DAYS,seasonal_flight.FLYING_TIME,seasonal_flight.START_DATE season_start
-		 from
-		 FIMS_FLIGHTSCHD_SEASON seasonal_flight
-		 LEFT JOIN
-		 FIMS_FLIGHTSEASON flightseason
-		 ON
-		 seasonal_flight.SEASON_REC_ID = flightseason.SEASON_REC_ID
-		 where
-		 flightseason.ACTIVESEASON_FLAG = :activeFlag
-		 and FLIGHT_NUMBER = :flightNumber
-		 and INSTR(OPERATION_DAYS, :operationDay) > 0
-		 and ARRI_OR_DEPT = :arriOrDept
-
-		 """,
+            select
+                seasonal_flight.FLIGHT_NUMBER,
+                seasonal_flight.OPERATION_DAYS,
+                seasonal_flight.FLYING_TIME,
+                seasonal_flight.START_DATE season_start,
+                flightseason.END_DATE season_end
+            from
+                FIMS_FLIGHTSCHD_SEASON seasonal_flight
+                left join FIMS_FLIGHTSEASON flightseason
+                    on seasonal_flight.SEASON_REC_ID = flightseason.SEASON_REC_ID
+            where
+                flightseason.ACTIVESEASON_FLAG = :activeFlag
+                and FLIGHT_NUMBER = :flightNumber
+                and INSTR(OPERATION_DAYS, :operationDay) > 0
+                and ARRI_OR_DEPT = :arriOrDept
+        """,
     )
     fun getSeasonalArrivalFlight(
         flightNumber: String,

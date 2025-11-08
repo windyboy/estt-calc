@@ -500,7 +500,13 @@ This project uses **Kotest**, a modern Kotlin-native testing framework that prov
 ```kotlin
 describe("calculate") {
     it("should calculate with sufficient history") {
-        val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
+        val seasonalFlight = SeasonalFlight(
+            "MU9941",
+            "1234567",
+            90L,
+            LocalDate.of(2021, 3, 28),
+            LocalDate.of(2021, 12, 31),
+        )
         every { seasonRepository.getSeasonalArrivalFlight("MU9941", "%5%") } returns seasonalFlight
         
         val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))

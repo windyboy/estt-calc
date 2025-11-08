@@ -90,6 +90,7 @@ class EsttServiceErrorTest : DescribeSpec({
                 "1234567",
                 0L,
                 LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
             )
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns flight
@@ -108,6 +109,7 @@ class EsttServiceErrorTest : DescribeSpec({
                 "",
                 90L,
                 LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
             )
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns flight
@@ -163,7 +165,13 @@ class EsttServiceErrorTest : DescribeSpec({
         }
 
         it("should record success metrics when calculation succeeds") {
-            val flight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
+            val flight = SeasonalFlight(
+                "MU9941",
+                "1234567",
+                90L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
+            )
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns flight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns emptyList()

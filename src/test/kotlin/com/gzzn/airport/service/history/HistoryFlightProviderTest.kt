@@ -29,6 +29,7 @@ class HistoryFlightProviderTest : DescribeSpec({
         operationDays = "135",
         flyingTime = 100,
         seasonStart = LocalDate.of(2024, 3, 31),
+        seasonEnd = LocalDate.of(2024, 10, 26),
     )
 
     beforeEach {
@@ -81,38 +82,27 @@ class HistoryFlightProviderTest : DescribeSpec({
         it("returns filtered items and records pagination metrics") {
             val baseDate = LocalDate.of(2024, 6, 5)
             val paginatedSeasonal = seasonalFlight.copy(operationDays = "1234567")
-            val firstBatch = List(5) { index ->
+            val combinedBatch = List(10) { index ->
                 historyFlight(
                     date = baseDate.minusDays(index.toLong()),
                     scheduledOffsetMinutes = 0,
                     actualDurationMinutes = 100,
                 )
             }
-            val secondBatch = List(5) { index ->
-                historyFlight(
-                    date = baseDate.minusDays(10 + index.toLong()),
-                    scheduledOffsetMinutes = 0,
-                    actualDurationMinutes = 100,
-                )
-            }
 
             every {
-                repository.getArrivalFlightPage(paginatedSeasonal.flightNumber, any(), any(), 0, any(), any())
-            } returns firstBatch
-
-            every {
-                repository.getArrivalFlightPage(paginatedSeasonal.flightNumber, any(), any(), 5, any(), any())
-            } returns secondBatch
+                repository.getArrivalFlightPage(paginatedSeasonal.flightNumber, any(), any(), any(), any(), any())
+            } returns combinedBatch
 
             val response: PaginatedHistoryResponse =
                 provider.getPaginatedHistory(paginatedSeasonal, baseDate, offset = 3, limit = 4)
 
-            response.items shouldHaveSize 2
-            response.totalFiltered shouldBe 5
-            response.hasMore.shouldBeFalse()
+            response.items shouldHaveSize 4
+            response.totalFiltered shouldBe 10
+            response.hasMore.shouldBeTrue()
 
-            meterRegistry.counter("estt.history.pagination.calls", "hasMore", "false", "capped", "false").count() shouldBe 1.0
-            meterRegistry.summary("estt.history.pagination.items", "hasMore", "false").count() shouldBe 1
+            meterRegistry.counter("estt.history.pagination.calls", "hasMore", "true", "capped", "false").count() shouldBe 1.0
+            meterRegistry.summary("estt.history.pagination.items", "hasMore", "true").count() shouldBe 1
         }
 
         it("returns empty response when repository yields no data") {

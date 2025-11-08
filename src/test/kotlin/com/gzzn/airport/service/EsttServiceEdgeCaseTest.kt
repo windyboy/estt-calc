@@ -55,7 +55,13 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
 
     describe("calculate with edge cases") {
         it("should handle exactly minimum history flights") {
-            val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
+            val seasonalFlight = SeasonalFlight(
+                "MU9941",
+                "1234567",
+                90L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
+            )
             val historyFlights = createHistoryFlights(20, LocalDate.of(2021, 12, 31))
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
@@ -70,7 +76,13 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
         }
 
         it("should use seasonal time with one less than minimum history") {
-            val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
+            val seasonalFlight = SeasonalFlight(
+                "MU9941",
+                "1234567",
+                90L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
+            )
             val historyFlights = createHistoryFlights(19, LocalDate.of(2021, 12, 31))
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
@@ -83,7 +95,13 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
         }
 
         it("should reject zero seasonal flying time") {
-            val seasonalFlight = SeasonalFlight("MU9941", "1234567", 0L, LocalDate.of(2021, 3, 28))
+            val seasonalFlight = SeasonalFlight(
+                "MU9941",
+                "1234567",
+                0L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
+            )
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
             every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } returns emptyList()
@@ -97,7 +115,13 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
 
     describe("getSeasonalFlight with operation day edge cases") {
         it("should match operation day at boundary") {
-            val seasonalFlight = SeasonalFlight("MU9941", "17", 90L, LocalDate.of(2021, 3, 28))
+            val seasonalFlight = SeasonalFlight(
+                "MU9941",
+                "17",
+                90L,
+                LocalDate.of(2020, 10, 25),
+                LocalDate.of(2021, 12, 31),
+            )
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "1") } returns seasonalFlight
 
@@ -108,7 +132,13 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
         }
 
         it("should filter out partial day matches") {
-            val seasonalFlight = SeasonalFlight("MU9941", "27", 90L, LocalDate.of(2021, 3, 28))
+            val seasonalFlight = SeasonalFlight(
+                "MU9941",
+                "27",
+                90L,
+                LocalDate.of(2020, 10, 25),
+                LocalDate.of(2021, 12, 31),
+            )
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "1") } returns seasonalFlight
 
@@ -121,7 +151,13 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
 
     describe("history flight filtering") {
         it("should filter by operation day mismatch") {
-            val seasonalFlight = SeasonalFlight("MU9941", "246", 90L, LocalDate.of(2021, 3, 28))
+            val seasonalFlight = SeasonalFlight(
+                "MU9941",
+                "246",
+                90L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
+            )
 
             val historyFlights = listOf(
                 HistoricalFlight(
@@ -148,7 +184,13 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
         }
 
         it("should filter by excessive delay") {
-            val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
+            val seasonalFlight = SeasonalFlight(
+                "MU9941",
+                "1234567",
+                90L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
+            )
 
             val historyFlights = listOf(
                 HistoricalFlight(
@@ -175,7 +217,13 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
         }
 
         it("should filter by flying time deviation") {
-            val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
+            val seasonalFlight = SeasonalFlight(
+                "MU9941",
+                "1234567",
+                90L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
+            )
 
             val historyFlights = listOf(
                 HistoricalFlight(
@@ -202,7 +250,13 @@ class EsttServiceEdgeCaseTest : DescribeSpec({
         }
 
         it("should filter by invalid time order") {
-            val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
+            val seasonalFlight = SeasonalFlight(
+                "MU9941",
+                "1234567",
+                90L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
+            )
 
             val historyFlights = listOf(
                 HistoricalFlight(

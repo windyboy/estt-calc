@@ -58,7 +58,13 @@ class EsttControllerTest : DescribeSpec({
 
     describe("getSeasonalFlight") {
         it("should return flight with valid parameters") {
-            val flight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
+            val flight = SeasonalFlight(
+                "MU9941",
+                "1234567",
+                90L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
+            )
             every { esttService.parseFlightDate("211231") } returns LocalDate.of(2021, 12, 31)
             every { esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31)) } returns Result.success(flight)
 
@@ -69,7 +75,13 @@ class EsttControllerTest : DescribeSpec({
         }
 
         it("should normalize flight number to uppercase") {
-            val flight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
+            val flight = SeasonalFlight(
+                "MU9941",
+                "1234567",
+                90L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
+            )
             every { esttService.parseFlightDate("211231") } returns LocalDate.of(2021, 12, 31)
             every { esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31)) } returns Result.success(flight)
 
@@ -103,7 +115,13 @@ class EsttControllerTest : DescribeSpec({
 
     describe("getHistoryFlights") {
         it("should return list successfully") {
-            val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
+            val seasonalFlight = SeasonalFlight(
+                "MU9941",
+                "1234567",
+                90L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
+            )
             every { esttService.parseFlightDate(any()) } returns LocalDate.of(2021, 12, 31)
             every { esttService.getSeasonalFlight(any(), any()) } returns Result.success(seasonalFlight)
             val paginatedResponse = PaginatedHistoryResponse(emptyList(), 0, 0, 100, false)
@@ -118,7 +136,13 @@ class EsttControllerTest : DescribeSpec({
         }
 
         it("should return server error on exception") {
-            val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
+            val seasonalFlight = SeasonalFlight(
+                "MU9941",
+                "1234567",
+                90L,
+                LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 12, 31),
+            )
             every { esttService.parseFlightDate(any()) } returns LocalDate.of(2021, 12, 31)
             every { esttService.getSeasonalFlight(any(), any()) } returns Result.success(seasonalFlight)
             every { esttService.getPaginatedHistoryFlights(any(), any(), any(), any()) } returns
