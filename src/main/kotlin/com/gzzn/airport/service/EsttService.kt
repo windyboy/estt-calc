@@ -73,14 +73,17 @@ open class EsttService(
      * @return the current flight season wrapped in a Result.
      */
     @Cacheable("active-season")
+    open fun cachedActiveSeason(): FlightSeason? {
+        val activeFlightSeason = seasonRepository.getFlightSeason(true)
+        log.info("Active flight season: $activeFlightSeason")
+        return activeFlightSeason
+    }
+
     open fun getActiveSeason(): Result<FlightSeason?> {
-        return runCatching {
-            val activeFlightSeason = seasonRepository.getFlightSeason(true)
-            log.info("Active flight season: $activeFlightSeason")
-            activeFlightSeason
-        }.onFailure { e ->
-            log.error("Error getting active flight season", e)
-        }
+        return runCatching { cachedActiveSeason() }
+            .onFailure { e ->
+                log.error("Error getting active flight season", e)
+            }
     }
 
     /**
@@ -127,29 +130,32 @@ open class EsttService(
       */
      @Cacheable("seasonal-flight")
      @CircuitBreaker(attempts = "10", delay = "500ms", reset = "60s")
-     open fun getSeasonalFlight(flightNumber: String, flightDate: LocalDate): Result<SeasonalFlight?> {
-         return runCatching {
-             val operationDay = getOperationDay(flightDate)
-             log.debug("Finding seasonal flight for flight number $flightNumber, operation day $operationDay")
+     open fun cachedSeasonalFlight(flightNumber: String, flightDate: LocalDate): SeasonalFlight? {
+         val operationDay = getOperationDay(flightDate)
+         log.debug("Finding seasonal flight for flight number $flightNumber, operation day $operationDay")
 
-             // Pass operationDay as string without wildcards (INSTR handles the search)
-             val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, operationDay.toString())
+         // Pass operationDay as string without wildcards (INSTR handles the search)
+         val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, operationDay.toString())
 
-             // Additional validation: ensure the operation day actually matches
-             // Using helper function to avoid false matches like "1" matching "12"
-             val validatedFlight = seasonalFlight?.takeIf {
-                 isOperationDayMatch(it.operationDays, operationDay)
-             }
-
-             if (seasonalFlight != null && validatedFlight == null) {
-                 log.warn("Seasonal flight found but operation day validation failed: flight=$flightNumber, day=$operationDay, operationDays=${seasonalFlight.operationDays}")
-             }
-
-             log.debug("Validated seasonal flight: {}", validatedFlight)
-             validatedFlight
-         }.onFailure { e ->
-             log.error("Error finding seasonal flight for $flightNumber on $flightDate", e)
+         // Additional validation: ensure the operation day actually matches
+         // Using helper function to avoid false matches like "1" matching "12"
+         val validatedFlight = seasonalFlight?.takeIf {
+             isOperationDayMatch(it.operationDays, operationDay)
          }
+
+         if (seasonalFlight != null && validatedFlight == null) {
+             log.warn("Seasonal flight found but operation day validation failed: flight=$flightNumber, day=$operationDay, operationDays=${seasonalFlight.operationDays}")
+         }
+
+         log.debug("Validated seasonal flight: {}", validatedFlight)
+         return validatedFlight
+     }
+
+     open fun getSeasonalFlight(flightNumber: String, flightDate: LocalDate): Result<SeasonalFlight?> {
+         return runCatching { cachedSeasonalFlight(flightNumber, flightDate) }
+             .onFailure { e ->
+                 log.error("Error finding seasonal flight for $flightNumber on $flightDate", e)
+             }
      }
 
     /**
@@ -160,16 +166,17 @@ open class EsttService(
      * @return a list of historical flights wrapped in a Result.
      */
     @Cacheable("history-flights")
+    open fun cachedHistoryFlights(flightNumber: String, flightDate: LocalDate): List<HistoricalFlight> {
+        val seasonalFlight = cachedSeasonalFlight(flightNumber, flightDate)
+        if (seasonalFlight == null) {
+            // Business case: no seasonal flight, cache empty list
+            return emptyList()
+        }
+        return loadHistoryFlightsWithSeasonFlight(seasonalFlight, flightDate)
+    }
+
     open fun getHistoryFlights(flightNumber: String, flightDate: LocalDate): Result<List<HistoricalFlight>> {
-        return getSeasonalFlight(flightNumber, flightDate)
-            .flatMap { seasonalFlight ->
-                if (seasonalFlight == null) {
-                    // Business case: no seasonal flight, return empty list (success)
-                    Result.success(emptyList())
-                } else {
-                    getHistoryFlightsWithSeasonFlight(seasonalFlight, flightDate)
-                }
-            }
+        return runCatching { cachedHistoryFlights(flightNumber, flightDate) }
             .onFailure { e ->
                 log.error("Error getting history flights for $flightNumber on $flightDate", e)
             }
@@ -177,62 +184,36 @@ open class EsttService(
 
     /**
      * Get paginated historical flights for a given flight number and date.
-     * Filters ALL results first, then paginates to ensure consistent page sizes.
+     * Performs chunked repository pagination (bounded by `maxHistoryRows`)
+     * and applies business filtering before building the page.
+     *
      * @param flightNumber the flight number.
      * @param flightDate the flight date.
-     * @param offset the number of results to skip.
-     * @param limit the maximum number of results to return.
+     * @param offset the number of filtered results to skip.
+     * @param limit the maximum number of filtered results to return.
      * @return paginated response with metadata wrapped in a Result.
      */
     open fun getPaginatedHistoryFlights(flightNumber: String, flightDate: LocalDate, offset: Int, limit: Int): Result<PaginatedHistoryResponse> {
-        return getSeasonalFlight(flightNumber, flightDate)
-            .flatMap { seasonalFlight ->
-                if (seasonalFlight == null) {
-                    Result.success(PaginatedHistoryResponse(
-                        items = emptyList(),
-                        totalFiltered = 0,
-                        offset = offset,
-                        limit = limit,
-                        hasMore = false
-                    ))
-                } else {
-                    runCatching {
-                        val seasonStart = calculateHistoryStartDate(seasonalFlight.seasonStart)
-                        log.debug("Querying paginated historical flights for ${seasonalFlight.flightNumber} from $seasonStart to $flightDate")
-                        
-                        // Fetch all history
-                        val history = historyFlightRepository.getArrivalFlightUnlimited(
-                            seasonalFlight.flightNumber,
-                            seasonStart,
-                            flightDate
-                        )
-                        
-                        // Filter and sort ALL results first
-                        val allFiltered = history.asSequence()
-                            .filter { isHistoryFlight(seasonalFlight, it) }
-                            .sortedByDescending { it.scheduledTime }
-                            .toList()
-                        
-                        // Then paginate
-                        val paginated = allFiltered
-                            .drop(offset)
-                            .take(limit)
-                        
-                        log.debug("Retrieved ${history.size} historical flights, filtered to ${allFiltered.size}, returning ${paginated.size} for page")
-                        
-                        PaginatedHistoryResponse(
-                            items = paginated,
-                            totalFiltered = allFiltered.size,
-                            offset = offset,
-                            limit = limit,
-                            hasMore = offset + limit < allFiltered.size
-                        )
-                    }
-                }
+        return runCatching {
+            val seasonalFlight = cachedSeasonalFlight(flightNumber, flightDate)
+            if (seasonalFlight == null) {
+                return@runCatching PaginatedHistoryResponse(
+                    items = emptyList(),
+                    totalFiltered = 0,
+                    offset = offset,
+                    limit = limit,
+                    hasMore = false
+                )
             }
-            .onFailure { e ->
-                log.error("Error getting paginated history flights for $flightNumber on $flightDate", e)
-            }
+
+            val paginated = loadPaginatedHistory(seasonalFlight, flightDate, offset, limit)
+            log.debug(
+                "Paginated history for ${seasonalFlight.flightNumber}: returned=${paginated.items.size}, totalFiltered=${paginated.totalFiltered}, hasMore=${paginated.hasMore}"
+            )
+            paginated
+        }.onFailure { e ->
+            log.error("Error getting paginated history flights for $flightNumber on $flightDate", e)
+        }
     }
 
     /**
@@ -250,24 +231,91 @@ open class EsttService(
                 log.warn("seasonal flight is null, no history flight")
                 return@runCatching emptyList()
             }
-
-            val seasonStart = calculateHistoryStartDate(seasonalFlight.seasonStart)
-            log.debug("Querying historical flights for ${seasonalFlight.flightNumber} from $seasonStart to $flightDate")
-            val historyFlights = historyFlightRepository.getArrivalFlight(
-                seasonalFlight.flightNumber,
-                seasonStart,
-                flightDate,
-                maxHistoryRows  // Fetch max records from configuration
-            )
-            // Filter the historical flights to include only those that match the criteria
-            val filtered = historyFlights.asSequence()
-                .filter { historyFlight -> isHistoryFlight(seasonalFlight, historyFlight) }
-                .toList()
-            log.debug("Retrieved ${historyFlights.size} historical flights, filtered to ${filtered.size} valid flights")
-            filtered
+            loadHistoryFlightsWithSeasonFlight(seasonalFlight, flightDate)
         }.onFailure { e ->
             log.error("Error getting history flights with seasonal flight for $flightDate", e)
         }
+    }
+
+    private fun loadHistoryFlightsWithSeasonFlight(
+        seasonalFlight: SeasonalFlight,
+        flightDate: LocalDate
+    ): List<HistoricalFlight> {
+        val seasonStart = calculateHistoryStartDate(seasonalFlight.seasonStart)
+        log.debug("Querying historical flights for ${seasonalFlight.flightNumber} from $seasonStart to $flightDate")
+        val historyFlights = historyFlightRepository.getArrivalFlight(
+            seasonalFlight.flightNumber,
+            seasonStart,
+            flightDate,
+            maxHistoryRows  // Fetch max records from configuration
+        )
+        // Filter the historical flights to include only those that match the criteria
+        val filtered = historyFlights.asSequence()
+            .filter { historyFlight -> isHistoryFlight(seasonalFlight, historyFlight) }
+            .toList()
+        log.debug("Retrieved ${historyFlights.size} historical flights, filtered to ${filtered.size} valid flights")
+        return filtered
+    }
+
+    /**
+     * Fetch paginated history flights by iterating over repository pages until either the requested
+     * window is satisfied or the configured `maxHistoryRows` cap is reached.
+     *
+     * @return a [PaginatedHistoryResponse] whose total/hasMore are computed against the scanned window.
+     */
+    private fun loadPaginatedHistory(
+        seasonalFlight: SeasonalFlight,
+        flightDate: LocalDate,
+        offset: Int,
+        limit: Int
+    ): PaginatedHistoryResponse {
+        val seasonStart = calculateHistoryStartDate(seasonalFlight.seasonStart)
+        val items = mutableListOf<HistoricalFlight>()
+        var totalFiltered = 0
+        var rawOffset = 0
+        val chunkSize = maxOf(limit, 100)
+
+        while (rawOffset < maxHistoryRows) {
+            val fetchSize = minOf(chunkSize, maxHistoryRows - rawOffset)
+            val batch = historyFlightRepository.getArrivalFlightPage(
+                seasonalFlight.flightNumber,
+                seasonStart,
+                flightDate,
+                rawOffset,
+                fetchSize
+            )
+            if (batch.isEmpty()) {
+                break
+            }
+
+            rawOffset += batch.size
+
+            val filteredBatch = batch.filter { isHistoryFlight(seasonalFlight, it) }
+            for (flight in filteredBatch) {
+                when {
+                    totalFiltered < offset -> totalFiltered++
+                    items.size < limit -> {
+                        items += flight
+                        totalFiltered++
+                    }
+                    else -> {
+                        totalFiltered++
+                    }
+                }
+            }
+
+            if (batch.size < fetchSize) {
+                break
+            }
+        }
+
+        return PaginatedHistoryResponse(
+            items = items,
+            totalFiltered = totalFiltered,
+            offset = offset,
+            limit = limit,
+            hasMore = totalFiltered > offset + items.size
+        )
     }
 
     /**
@@ -537,8 +585,8 @@ open class EsttService(
      * @return true if the delay is within the maximum allowed delay, false otherwise.
      */
     private fun isFlightDelayAcceptable(historyFlight: HistoricalFlight): Boolean {
-        val minutes = calculateDurationMinutes(historyFlight.scheduledTime, historyFlight.actualTime)
-        return minutes < maxHistoryDelay
+        val delayMinutes = calculateDurationMinutes(historyFlight.scheduledTime, historyFlight.actualTime)
+        return abs(delayMinutes) < maxHistoryDelay
     }
 
     /**

@@ -148,6 +148,10 @@ Configuration can be set via environment variables or the `application.yml` file
 | `MAX_HISTORY_ROWS` | 历史航班查询最大数量 (Max history rows to fetch) | Integer | `300` |
 | `FLIGHT_NUMBER_PATTERN` | 航班号验证正则 (Flight number validation regex) | Regex | `^[A-Z]{2}[0-9]{3,4}$` |
 
+> Notes:
+> - The paginated history endpoint now pages directly at the repository layer and will never scan more than `MAX_HISTORY_ROWS` records for a request.
+> - Delay filtering uses the absolute difference between scheduled and actual times to discard extreme early/late arrivals from calculations.
+
 ### 配置文件示例 (Configuration Example)
 
 ```yaml
@@ -209,6 +213,11 @@ GET /estt/history/{flightNumber}/{flightDate}
 **Example**: `/estt/history/MU9941/211231`
 
 **Response**: Array of HistoricalFlight objects
+
+> **Pagination behavior**
+> - Results are paginated at the database layer to avoid loading the entire season into memory.
+> - The service scans at most `MAX_HISTORY_ROWS` records per request; use `limit/offset` to walk the history window.
+> - Filtering (operation day, schedule alignment, delay threshold) is applied before pagination metadata is computed.
 
 ### 4. 计算飞行时长 (Calculate Flying Time) - 核心功能
 

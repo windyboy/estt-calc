@@ -33,7 +33,13 @@ ORDER BY flight_date DESC
 FETCH FIRST :maxRows ROWS ONLY
   """
     )
-    fun getArrivalFlight(flightNumber: String, startDate: LocalDate, endDate: LocalDate, maxRows: Int = 300, arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL): List<HistoricalFlight>
+    fun getArrivalFlight(
+        flightNumber: String,
+        startDate: LocalDate,
+        endDate: LocalDate,
+        maxRows: Int = 300,
+        arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL
+    ): List<HistoricalFlight>
 
     @Query(
         """
@@ -53,8 +59,16 @@ WHERE
   AND flight_date BETWEEN :startDate AND :endDate
   AND flight_date = TRUNC(SCHEDULED_DATETIME)
 ORDER BY flight_date DESC
+OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
   """
     )
-    fun getArrivalFlightUnlimited(flightNumber: String, startDate: LocalDate, endDate: LocalDate, arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL): List<HistoricalFlight>
+    fun getArrivalFlightPage(
+        flightNumber: String,
+        startDate: LocalDate,
+        endDate: LocalDate,
+        offset: Int,
+        limit: Int,
+        arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL
+    ): List<HistoricalFlight>
 }
 

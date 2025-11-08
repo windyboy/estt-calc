@@ -285,7 +285,15 @@ class EsttServiceTest : DescribeSpec({
             val historyFlights = createHistoryFlights(10, LocalDate.of(2021, 12, 31))
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
-            every { historyFlightRepository.getArrivalFlightUnlimited("MU9941", any(), any()) } returns historyFlights
+            every {
+                historyFlightRepository.getArrivalFlightPage(
+                    "MU9941",
+                    any(),
+                    any(),
+                    0,
+                    any()
+                )
+            } returns historyFlights
 
             val result = esttService.getPaginatedHistoryFlights("MU9941", LocalDate.of(2021, 12, 31), 2, 3)
 
@@ -312,12 +320,84 @@ class EsttServiceTest : DescribeSpec({
             val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
 
             every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
-            every { historyFlightRepository.getArrivalFlightUnlimited(any(), any(), any()) } throws
+            every {
+                historyFlightRepository.getArrivalFlightPage(any(), any(), any(), any(), any())
+            } throws
                 RuntimeException("Database error")
 
             val result = esttService.getPaginatedHistoryFlights("MU9941", LocalDate.of(2021, 12, 31), 0, 10)
 
             result.isFailure.shouldBeTrue()
+        }
+    }
+
+    describe("caching and filtering edge cases") {
+        it("should not cache failures for seasonal flight lookup") {
+            val seasonalFlight = SeasonalFlight("MU9941", "1234567", 90L, LocalDate.of(2021, 3, 28))
+            var invocation = 0
+            every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } answers {
+                if (invocation++ == 0) {
+                    throw RuntimeException("DB error")
+                } else {
+                    seasonalFlight
+                }
+            }
+
+            val first = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31))
+            first.isFailure.shouldBeTrue()
+
+            val second = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31))
+            second.isSuccess.shouldBeTrue()
+            second.getOrNull() shouldBe seasonalFlight
+        }
+
+        it("should respect pagination limits and not exceed requested size") {
+            val seasonalFlight = SeasonalFlight("MU1234", "1234567", 80L, LocalDate.of(2021, 3, 28))
+            val historyFlights = createHistoryFlights(15, LocalDate.of(2021, 12, 31))
+
+            every { seasonRepository.getSeasonalArrivalFlight("MU1234", "5") } returns seasonalFlight
+            every {
+                historyFlightRepository.getArrivalFlightPage(
+                    "MU1234",
+                    any(),
+                    any(),
+                    any(),
+                    any()
+                )
+            } returns historyFlights
+
+            val result = esttService.getPaginatedHistoryFlights("MU1234", LocalDate.of(2021, 12, 31), 0, 5)
+            result.isSuccess.shouldBeTrue()
+            val response = result.getOrNull()
+            response.shouldNotBeNull()
+            response.items.size shouldBe 5
+            response.totalFiltered shouldBe 15
+            response.hasMore.shouldBeTrue()
+        }
+
+        it("should filter out extreme early arrivals") {
+            val seasonalFlight = SeasonalFlight("MU5678", "1234567", 90L, LocalDate.of(2021, 3, 28))
+            val baseDate = LocalDate.of(2021, 12, 31)
+            val extremeEarly = HistoricalFlight(
+                baseDate,
+                LocalDateTime.of(baseDate.year, baseDate.monthValue, baseDate.dayOfMonth, 12, 0),
+                LocalDateTime.of(baseDate.year, baseDate.monthValue, baseDate.dayOfMonth, 10, 0),
+                LocalDateTime.of(baseDate.year, baseDate.monthValue, baseDate.dayOfMonth, 11, 0)
+            )
+
+            every { seasonRepository.getSeasonalArrivalFlight("MU5678", "5") } returns seasonalFlight
+            every {
+                historyFlightRepository.getArrivalFlight(
+                    "MU5678",
+                    any(),
+                    baseDate,
+                    any()
+                )
+            } returns listOf(extremeEarly)
+
+            val result = esttService.getHistoryFlights("MU5678", baseDate)
+            result.isSuccess.shouldBeTrue()
+            result.getOrNull().shouldNotBeNull().isEmpty().shouldBeTrue()
         }
     }
 })
