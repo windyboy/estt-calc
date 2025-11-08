@@ -40,6 +40,7 @@ class FlyingTimeCalculatorTest : DescribeSpec({
                 operationDays = "1234567",
                 flyingTime = 100,
                 seasonStart = LocalDate.of(2024, 3, 31),
+                seasonEnd = LocalDate.of(2024, 10, 26),
             )
             val historyFlights = buildHistoryFlights(
                 baseDate = LocalDate.of(2024, 6, 1),
@@ -64,6 +65,7 @@ class FlyingTimeCalculatorTest : DescribeSpec({
                 operationDays = "1234567",
                 flyingTime = 105,
                 seasonStart = LocalDate.of(2024, 3, 31),
+                seasonEnd = LocalDate.of(2024, 10, 26),
             )
             val historyFlights = buildHistoryFlights(
                 baseDate = LocalDate.of(2024, 6, 1),
@@ -86,6 +88,7 @@ class FlyingTimeCalculatorTest : DescribeSpec({
                 operationDays = "1234567",
                 flyingTime = 0,
                 seasonStart = LocalDate.of(2024, 1, 1),
+                seasonEnd = LocalDate.of(2024, 10, 26),
             )
 
             val exception = shouldThrow<IllegalArgumentException> {

@@ -32,23 +32,37 @@ class ModelTest : DescribeSpec({
                 "1234567",
                 90L,
                 LocalDate.of(2021, 3, 28),
+                LocalDate.of(2021, 10, 30),
             )
 
             flight.flightNumber shouldBe "MU9941"
             flight.operationDays shouldBe "1234567"
             flight.flyingTime shouldBe 90L
             flight.seasonStart shouldBe LocalDate.of(2021, 3, 28)
+            flight.seasonEnd shouldBe LocalDate.of(2021, 10, 30)
         }
 
         it("should throw exception for invalid operationDays") {
             shouldThrow<IllegalArgumentException> {
-                SeasonalFlight("MU9941", "89", 90L, LocalDate.of(2021, 3, 28))
+                SeasonalFlight("MU9941", "89", 90L, LocalDate.of(2021, 3, 28), LocalDate.of(2021, 10, 30))
             }
         }
 
         it("should throw exception for operationDays with non-digit") {
             shouldThrow<IllegalArgumentException> {
-                SeasonalFlight("MU9941", "12a", 90L, LocalDate.of(2021, 3, 28))
+                SeasonalFlight("MU9941", "12a", 90L, LocalDate.of(2021, 3, 28), LocalDate.of(2021, 10, 30))
+            }
+        }
+
+        it("should throw exception when season end precedes start") {
+            shouldThrow<IllegalArgumentException> {
+                SeasonalFlight(
+                    "MU9941",
+                    "1234567",
+                    90L,
+                    LocalDate.of(2021, 10, 30),
+                    LocalDate.of(2021, 3, 28),
+                )
             }
         }
     }

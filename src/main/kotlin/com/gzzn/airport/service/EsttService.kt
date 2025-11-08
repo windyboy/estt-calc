@@ -124,17 +124,29 @@ open class EsttService(
 
         // Additional validation: ensure the operation day actually matches
         // Using helper function to avoid false matches like "1" matching "12"
-        val validatedFlight = seasonalFlight?.takeIf {
-            isOperationDayMatch(it.operationDays, operationDay)
-        }
+        val validatedFlight = seasonalFlight?.let {
+            val operationDayMatches = isOperationDayMatch(it.operationDays, operationDay)
+            val withinSeasonBounds = !flightDate.isBefore(it.seasonStart) && !flightDate.isAfter(it.seasonEnd)
 
-        if (seasonalFlight != null && validatedFlight == null) {
-            log.warn(
-                "Seasonal flight found but operation day validation failed: flight={}, day={}, operationDays={}",
-                flightNumber,
-                operationDay,
-                seasonalFlight.operationDays,
-            )
+            if (!operationDayMatches) {
+                log.warn(
+                    "Seasonal flight found but operation day validation failed: flight={}, day={}, operationDays={}",
+                    flightNumber,
+                    operationDay,
+                    it.operationDays,
+                )
+            }
+
+            if (!withinSeasonBounds) {
+                log.warn(
+                    "Seasonal flight found but date {} is outside season window: start={}, end={}",
+                    flightDate,
+                    it.seasonStart,
+                    it.seasonEnd,
+                )
+            }
+
+            if (operationDayMatches && withinSeasonBounds) it else null
         }
 
         log.debug("Validated seasonal flight: {}", validatedFlight)
@@ -327,13 +339,12 @@ open class EsttService(
      * @param response the response.
      */
     private fun recordSuccessMetrics(timer: Timer.Sample, flightNumber: String, response: FlyingTimeResponse) {
+        val sourceTag = if (response.history) "history" else "schedule"
         timer.stop(
             meterRegistry.timer(
                 "estt.calculation.time",
-                "flight",
-                flightNumber,
                 "source",
-                if (response.history) "history" else "schedule",
+                sourceTag,
                 "result",
                 "success",
             ),
@@ -341,7 +352,7 @@ open class EsttService(
         meterRegistry.counter(
             "estt.calculation.success",
             "source",
-            if (response.history) "history" else "schedule",
+            sourceTag,
         ).increment()
     }
 
