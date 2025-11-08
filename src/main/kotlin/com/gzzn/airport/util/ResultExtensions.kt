@@ -10,8 +10,8 @@ package com.gzzn.airport.util
  * @param transform the transformation function that produces a new Result
  * @return a Result containing the transformed value or the original failure
  *
- * @example
- * ```kotlin
+ * Example usage:
+ * ```
  * val result = Result.success(5)
  *     .flatMap { Result.success(it * 2) }
  *     .flatMap { Result.success(it + 10) }
@@ -34,8 +34,8 @@ inline fun <T, R> Result<T>.flatMap(transform: (T) -> Result<R>): Result<R> {
  * @param transform the transformation function applied to non-null values
  * @return a Result containing the transformed value or null if the input was null
  *
- * @example
- * ```kotlin
+ * Example usage:
+ * ```
  * val result: Result<User?> = getUser()
  * val nameResult: Result<String?> = result.mapNotNull { user -> user.name }
  * ```

@@ -4,6 +4,14 @@ import io.micronaut.data.annotation.MappedEntity
 import io.micronaut.serde.annotation.Serdeable
 import java.time.LocalDate
 
+/**
+ * Seasonal flight schedule entry supplied by the master data tables.
+ *
+ * @property flightNumber carrier flight identifier (already normalized to uppercase).
+ * @property operationDays digits representing operating days of week (1 = Monday ... 7 = Sunday).
+ * @property flyingTime scheduled flying time in minutes.
+ * @property seasonStart start date of the applicable season.
+ */
 @Serdeable
 @MappedEntity
 data class SeasonalFlight(

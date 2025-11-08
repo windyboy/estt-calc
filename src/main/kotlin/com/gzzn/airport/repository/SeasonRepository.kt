@@ -6,6 +6,9 @@ import io.micronaut.data.annotation.Query
 import io.micronaut.data.jdbc.annotation.JdbcRepository
 import io.micronaut.data.model.query.builder.sql.Dialect
 
+/**
+ * Repository for seasonal schedule metadata sourced from the FIMS schema.
+ */
 @JdbcRepository(dialect = Dialect.ORACLE)
 interface SeasonRepository {
     companion object {
@@ -13,6 +16,9 @@ interface SeasonRepository {
         const val ARRI_OR_DEPT_ARRIVAL = 'A'
     }
 
+    /**
+     * Returns the active or inactive flight season depending on the flag.
+     */
     @Query(
         """
 	select
@@ -24,6 +30,9 @@ interface SeasonRepository {
     )
     fun getFlightSeason(isActive: Boolean = true): FlightSeason?
 
+    /**
+     * Returns the seasonal arrival flight that matches the supplied flight number and operation day.
+     */
     @Query(
         """
 		 select

@@ -1,13 +1,18 @@
 package com.gzzn.airport.service
 
+import com.gzzn.airport.config.EsttCalculationConfig
 import com.gzzn.airport.model.HistoricalFlight
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.HistoryFlightRepository
 import com.gzzn.airport.repository.SeasonRepository
+import com.gzzn.airport.service.calculator.FlyingTimeCalculator
+import com.gzzn.airport.service.history.HistoryFlightProvider
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import java.time.LocalDate
@@ -24,24 +29,31 @@ class EsttServiceNewFeaturesTest : DescribeSpec({
     lateinit var esttService: EsttService
     lateinit var seasonRepository: SeasonRepository
     lateinit var historyFlightRepository: HistoryFlightRepository
-    lateinit var meterRegistry: io.micrometer.core.instrument.MeterRegistry
+    lateinit var historyFlightProvider: HistoryFlightProvider
+    lateinit var flyingTimeCalculator: FlyingTimeCalculator
+    lateinit var meterRegistry: MeterRegistry
+    lateinit var config: EsttCalculationConfig
 
     beforeEach {
         seasonRepository = mockk()
         historyFlightRepository = mockk()
-        meterRegistry = io.micrometer.core.instrument.simple.SimpleMeterRegistry()
-
+        meterRegistry = SimpleMeterRegistry()
+        config = EsttCalculationConfig(
+            maxHistoryDelay = 120,
+            minHistoryFlight = 20,
+            dateFormat = "yyMMdd",
+            historyStartOffsetDays = 60L,
+            maxHistoryRows = 300,
+        )
+        historyFlightProvider = HistoryFlightProvider(historyFlightRepository, meterRegistry, config)
+        flyingTimeCalculator = FlyingTimeCalculator(meterRegistry, config)
         esttService = EsttService(
             seasonRepository,
-            historyFlightRepository,
+            historyFlightProvider,
+            flyingTimeCalculator,
             meterRegistry,
-            120,
-            20,
-            "yyMMdd",
-            60L,
-            300,
+            config,
         )
-        esttService.init()
     }
 
     describe("Operation Day Matching") {

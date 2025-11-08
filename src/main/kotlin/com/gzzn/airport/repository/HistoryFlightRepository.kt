@@ -6,12 +6,20 @@ import io.micronaut.data.jdbc.annotation.JdbcRepository
 import io.micronaut.data.model.query.builder.sql.Dialect
 import java.time.LocalDate
 
+/**
+ * Low-level access to historical flight facts stored in `FIMS_FLIGHTSCHD_HST`.
+ * Queries intentionally constrain rows to recent data and rely on the service layer
+ * for additional business filtering.
+ */
 @JdbcRepository(dialect = Dialect.ORACLE)
 interface HistoryFlightRepository {
     companion object {
         const val ARRI_OR_DEPT_ARRIVAL = 'A'
     }
 
+    /**
+     * Fetches arrival history capped by `maxRows`, ordered by most recent flight date.
+     */
     @Query(
         """
 SELECT
@@ -41,6 +49,9 @@ FETCH FIRST :maxRows ROWS ONLY
         arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL,
     ): List<HistoricalFlight>
 
+    /**
+     * Fetches a page of arrival history using offset/limit for iterative scans.
+     */
     @Query(
         """
 SELECT

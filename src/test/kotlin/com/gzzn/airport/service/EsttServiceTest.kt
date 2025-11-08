@@ -1,10 +1,13 @@
 package com.gzzn.airport.service
 
+import com.gzzn.airport.config.EsttCalculationConfig
 import com.gzzn.airport.model.FlightSeason
 import com.gzzn.airport.model.HistoricalFlight
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.HistoryFlightRepository
 import com.gzzn.airport.repository.SeasonRepository
+import com.gzzn.airport.service.calculator.FlyingTimeCalculator
+import com.gzzn.airport.service.history.HistoryFlightProvider
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -13,6 +16,8 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -24,24 +29,31 @@ class EsttServiceTest : DescribeSpec({
     lateinit var esttService: EsttService
     lateinit var seasonRepository: SeasonRepository
     lateinit var historyFlightRepository: HistoryFlightRepository
-    lateinit var meterRegistry: io.micrometer.core.instrument.MeterRegistry
+    lateinit var historyFlightProvider: HistoryFlightProvider
+    lateinit var flyingTimeCalculator: FlyingTimeCalculator
+    lateinit var meterRegistry: MeterRegistry
+    lateinit var config: EsttCalculationConfig
 
     beforeEach {
         seasonRepository = mockk()
         historyFlightRepository = mockk()
-        meterRegistry = io.micrometer.core.instrument.simple.SimpleMeterRegistry()
-
+        meterRegistry = SimpleMeterRegistry()
+        config = EsttCalculationConfig(
+            maxHistoryDelay = 120,
+            minHistoryFlight = 20,
+            dateFormat = "yyMMdd",
+            historyStartOffsetDays = 60L,
+            maxHistoryRows = 300,
+        )
+        historyFlightProvider = HistoryFlightProvider(historyFlightRepository, meterRegistry, config)
+        flyingTimeCalculator = FlyingTimeCalculator(meterRegistry, config)
         esttService = EsttService(
             seasonRepository,
-            historyFlightRepository,
+            historyFlightProvider,
+            flyingTimeCalculator,
             meterRegistry,
-            120,
-            20,
-            "yyMMdd",
-            60L,
-            300,
+            config,
         )
-        esttService.init()
     }
 
     describe("parseFlightDate") {
@@ -339,16 +351,19 @@ class EsttServiceTest : DescribeSpec({
                 historyFlightRepository.getArrivalFlightPage("MU0002", any(), any(), any(), any())
             } returns unqualifiedFlights
 
-            val constrainedService = EsttService(
+            val constrainedConfig = EsttCalculationConfig(
+                maxHistoryDelay = 120,
+                minHistoryFlight = 20,
+                dateFormat = "yyMMdd",
+                historyStartOffsetDays = 60L,
+                maxHistoryRows = 10,
+            )
+            val constrainedService = buildService(
                 seasonRepository,
                 historyFlightRepository,
                 meterRegistry,
-                120,
-                20,
-                "yyMMdd",
-                60L,
-                10,
-            ).also { it.init() }
+                constrainedConfig,
+            )
 
             val result = constrainedService.getPaginatedHistoryFlights("MU0002", flightDate, 0, 5)
 
@@ -464,31 +479,25 @@ class EsttServiceTest : DescribeSpec({
     describe("configuration validation") {
         it("should reject invalid max history delay") {
             shouldThrow<IllegalArgumentException> {
-                EsttService(
-                    seasonRepository,
-                    historyFlightRepository,
-                    meterRegistry,
-                    0,
-                    20,
-                    "yyMMdd",
-                    60L,
-                    300,
-                ).init()
+                EsttCalculationConfig(
+                    maxHistoryDelay = 0,
+                    minHistoryFlight = 20,
+                    dateFormat = "yyMMdd",
+                    historyStartOffsetDays = 60L,
+                    maxHistoryRows = 300,
+                )
             }
         }
 
         it("should reject negative history start offset") {
             shouldThrow<IllegalArgumentException> {
-                EsttService(
-                    seasonRepository,
-                    historyFlightRepository,
-                    meterRegistry,
-                    120,
-                    20,
-                    "yyMMdd",
-                    -1,
-                    300,
-                ).init()
+                EsttCalculationConfig(
+                    maxHistoryDelay = 120,
+                    minHistoryFlight = 20,
+                    dateFormat = "yyMMdd",
+                    historyStartOffsetDays = -1,
+                    maxHistoryRows = 300,
+                )
             }
         }
     }
@@ -517,4 +526,15 @@ private fun createHistoryFlightsWithDelay(count: Int, baseDate: LocalDate, delay
             scheduled,
         )
     }
+}
+
+private fun buildService(
+    seasonRepository: SeasonRepository,
+    historyFlightRepository: HistoryFlightRepository,
+    meterRegistry: MeterRegistry,
+    config: EsttCalculationConfig,
+): EsttService {
+    val provider = HistoryFlightProvider(historyFlightRepository, meterRegistry, config)
+    val calculator = FlyingTimeCalculator(meterRegistry, config)
+    return EsttService(seasonRepository, provider, calculator, meterRegistry, config)
 }
