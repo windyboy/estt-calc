@@ -279,7 +279,7 @@ open class EsttService(
         try {
             log.info("Starting flying time calculation")
             return fetchAndCalculate(flightNumber, flightDate)
-                .onSuccess { response -> recordSuccessMetrics(timer, flightNumber, response) }
+                .onSuccess { response -> recordSuccessMetrics(timer, response) }
                 .onFailure { e -> recordFailureMetrics(timer, e) }
         } finally {
             // Remove only the keys we added to avoid clearing context from other threads
@@ -338,7 +338,7 @@ open class EsttService(
      * @param flightNumber the flight number.
      * @param response the response.
      */
-    private fun recordSuccessMetrics(timer: Timer.Sample, flightNumber: String, response: FlyingTimeResponse) {
+    private fun recordSuccessMetrics(timer: Timer.Sample, response: FlyingTimeResponse) {
         val sourceTag = if (response.history) "history" else "schedule"
         timer.stop(
             meterRegistry.timer(
