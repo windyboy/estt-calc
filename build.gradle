@@ -125,13 +125,13 @@ spotless {
     }
 }
 
-tasks.named("dockerfile") {
-    baseImage("eclipse-temurin:21-jre-jammy")
-}
+// tasks.named("dockerfile") {
+//     baseImage("eclipse-temurin:21-jre-jammy")
+// }
 
-tasks.named("dockerfileNative") {
-    jdkVersion = "21"
-}
+// tasks.named("dockerfileNative") {
+//     jdkVersion = "21"
+// }
 
 // Kover configuration for test coverage reports
 kover {
