@@ -11,8 +11,10 @@ plugins {
     id("com.diffplug.spotless") version "6.25.0"
 }
 
-version "${appVersion}"
-group "com.gzzn.airport"
+// version "${appVersion}"
+// group "com.gzzn.airport"
+version = appVersion
+group = "com.gzzn.airport"
 
 repositories {
 //    maven { url "https://repo.int.it2000.com.cn/releases" }
@@ -137,5 +139,5 @@ kover {
 }
 
 tasks.named("check") {
-    dependsOn("detekt", "spotlessCheck")
+    dependsOn("detekt", "spotlessCheck", "koverHtmlReport")
 }

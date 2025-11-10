@@ -54,14 +54,16 @@ class HistoryFlightProviderTest : DescribeSpec({
                 actualDurationMinutes = 100,
             )
             val mismatchedDay = historyFlight(
-                date = baseDate.plusDays(1), // Thursday (4)
+                // Thursday (4)
+                date = baseDate.plusDays(1),
                 scheduledOffsetMinutes = 0,
                 actualDurationMinutes = 100,
             )
             val excessiveDelay = historyFlight(
                 date = baseDate.minusDays(2),
                 scheduledOffsetMinutes = 0,
-                actualDurationMinutes = 250, // > max delay
+                // > max delay
+                actualDurationMinutes = 250,
             )
             val reversedTime = validFlight.copy(
                 previousDepartureTime = validFlight.actualTime.plusMinutes(5),
@@ -119,11 +121,7 @@ class HistoryFlightProviderTest : DescribeSpec({
     }
 })
 
-private fun historyFlight(
-    date: LocalDate,
-    scheduledOffsetMinutes: Long,
-    actualDurationMinutes: Long,
-): HistoricalFlight {
+private fun historyFlight(date: LocalDate, scheduledOffsetMinutes: Long, actualDurationMinutes: Long): HistoricalFlight {
     val scheduledTime = LocalDateTime.of(date.year, date.monthValue, date.dayOfMonth, 12, 0)
     val previousDeparture = scheduledTime.minusMinutes(actualDurationMinutes + scheduledOffsetMinutes)
     return HistoricalFlight(
@@ -133,4 +131,3 @@ private fun historyFlight(
         scheduledTime = scheduledTime,
     )
 }
-

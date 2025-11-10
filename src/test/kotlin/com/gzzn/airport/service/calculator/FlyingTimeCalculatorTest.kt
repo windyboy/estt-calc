@@ -45,7 +45,10 @@ class FlyingTimeCalculatorTest : DescribeSpec({
             val historyFlights = buildHistoryFlights(
                 baseDate = LocalDate.of(2024, 6, 1),
                 count = config.minHistoryFlight,
-                durationGenerator = { 95L + (it % 3) }, // 95, 96, 97 repeating
+                durationGenerator = { index ->
+                    // 95, 96, 97 repeating
+                    95L + (index % 3)
+                },
             )
 
             val result = calculator.calculate(seasonalFlight, seasonalFlight.flightNumber, historyFlights)
@@ -100,11 +103,7 @@ class FlyingTimeCalculatorTest : DescribeSpec({
     }
 })
 
-private fun buildHistoryFlights(
-    baseDate: LocalDate,
-    count: Int,
-    durationGenerator: (index: Int) -> Long,
-): List<HistoricalFlight> {
+private fun buildHistoryFlights(baseDate: LocalDate, count: Int, durationGenerator: (index: Int) -> Long): List<HistoricalFlight> {
     return (0 until count).map { index ->
         val date = baseDate.minusDays(index.toLong())
         val start = LocalDateTime.of(date.year, date.monthValue, date.dayOfMonth, 10, 0)
@@ -117,4 +116,3 @@ private fun buildHistoryFlights(
         )
     }
 }
-
