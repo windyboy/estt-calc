@@ -10,18 +10,22 @@ import jakarta.inject.Singleton
  */
 @Singleton
 class EsttCalculationConfig(
-    @Value("\${estt.calculation.max-history-delay:120}") val maxHistoryDelay: Int,
-    @Value("\${estt.calculation.min-history-flight:20}") val minHistoryFlight: Int,
-    @Value("\${estt.calculation.date-format}") val dateFormat: String,
-    @Value("\${estt.calculation.history-start-offset-days}") val historyStartOffsetDays: Long,
-    @Value("\${estt.calculation.max-history-rows:300}") val maxHistoryRows: Int,
+    @param:Value("\${estt.calculation.max-schedule-deviation:120}") val maxScheduleDeviation: Int,
+    @param:Value("\${estt.calculation.max-flying-time-deviation:120}") val maxFlyingTimeDeviation: Int,
+    @param:Value("\${estt.calculation.min-history-flight:20}") val minHistoryFlight: Int,
+    @param:Value("\${estt.calculation.date-format}") val dateFormat: String,
+    @param:Value("\${estt.calculation.history-start-offset-days}") val historyStartOffsetDays: Long,
+    @param:Value("\${estt.calculation.max-history-rows:300}") val maxHistoryRows: Int,
 ) {
     init {
         require(minHistoryFlight > 0) {
             "Configuration error: estt.calculation.min-history-flight must be positive, got: $minHistoryFlight"
         }
-        require(maxHistoryDelay > 0) {
-            "Configuration error: estt.calculation.max-history-delay must be positive, got: $maxHistoryDelay"
+        require(maxScheduleDeviation > 0) {
+            "Configuration error: estt.calculation.max-schedule-deviation must be positive, got: $maxScheduleDeviation"
+        }
+        require(maxFlyingTimeDeviation > 0) {
+            "Configuration error: estt.calculation.max-flying-time-deviation must be positive, got: $maxFlyingTimeDeviation"
         }
         require(maxHistoryRows > 0) {
             "Configuration error: estt.calculation.max-history-rows must be positive, got: $maxHistoryRows"

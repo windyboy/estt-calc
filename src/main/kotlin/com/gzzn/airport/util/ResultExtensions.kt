@@ -18,12 +18,10 @@ package com.gzzn.airport.util
  * // result contains 20
  * ```
  */
-inline fun <T, R> Result<T>.flatMap(transform: (T) -> Result<R>): Result<R> {
-    return fold(
-        onSuccess = { value -> transform(value) },
-        onFailure = { exception -> Result.failure(exception) },
-    )
-}
+inline fun <T, R> Result<T>.flatMap(transform: (T) -> Result<R>): Result<R> = fold(
+    onSuccess = { value -> transform(value) },
+    onFailure = { exception -> Result.failure(exception) },
+)
 
 /**
  * Maps a nullable Result value, handling null as a business case rather than error.
@@ -40,6 +38,4 @@ inline fun <T, R> Result<T>.flatMap(transform: (T) -> Result<R>): Result<R> {
  * val nameResult: Result<String?> = result.mapNotNull { user -> user.name }
  * ```
  */
-inline fun <T, R> Result<T?>.mapNotNull(transform: (T) -> R): Result<R?> {
-    return map { it?.let(transform) }
-}
+inline fun <T, R> Result<T?>.mapNotNull(transform: (T) -> R): Result<R?> = map { it?.let(transform) }

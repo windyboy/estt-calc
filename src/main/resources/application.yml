@@ -28,7 +28,8 @@ datasources:
 
 estt:
   calculation:
-    max-history-delay: ${MAX_DELAY:120}
+    max-schedule-deviation: ${MAX_SCHEDULE_DEVIATION:120}
+    max-flying-time-deviation: ${MAX_FLYING_TIME_DEVIATION:120}
     min-history-flight: ${MIN_HISTORY:20}
     date-format: 'yyMMdd'
     history-start-offset-days: ${START_MINUS:60}

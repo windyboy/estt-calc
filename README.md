@@ -18,44 +18,68 @@ This standalone microservice implements flight duration calculation logic that c
 
 ## 算法 (Algorithm)
 
-1. 查询当前激活的航季计划 (`EsttService.cachedActiveSeason`)。
-2. 按航班日期推导运营日，过滤出当天有效的季节航班 (`cachedSeasonalFlight`)。
-3. 从季节开始日期往前回溯 `historyStartOffsetDays`（默认 60 天），查询历史航班，最多 `maxHistoryRows`（默认 300 条）。
-4. 逐条应用业务过滤：
-   - 运营日必须与季节计划匹配（逐位比较，防止 “1” 匹配 “12”）。
-   - `previousDepartureTime < actualTime`，避免脏数据。
+1. 查询当前激活的航季计划，按航班日期推导运营日，匹配当天有效的季节航班。
+2. 从航季开始日期往前回溯 `historyStartOffsetDays`（默认 60 天）查询历史航班，**上界为目标运营日的前一天**（目标日本身不参与样本），最多 `maxHistoryRows`（默认 300 条）。
+3. 逐条应用业务过滤：
+   - 运营日必须与季节计划匹配（逐位比较，防止 “1” 匹配 “12”；编码见下文）。
+   - `previousDepartureTime < actualTime`，排除时间顺序异常的数据。
    - `scheduledTime` 的日期必须等于 `flightDate`。
-   - 实际飞行时长与季节飞行时长的差值需小于 `maxHistoryDelay`（默认 120 分钟）。
-   - 额外检查：计划 vs 实际落地时间差值也须在 `maxHistoryDelay` 内，排除异常提前/延误。
-5. 将合格样本按 `scheduledTime` 逆序排列，若数量 ≥ `minHistoryFlight`（默认 20），取最新的 `minHistoryFlight` 条计算平均飞行时长（双精度求平均后四舍五入）。
-6. 当历史样本不足时，直接使用季节航班的飞行时长作为预计值。
-7. 如果季节航班不存在，则返回飞行时长为 0，`history=false`、`seasonal=false`。
+   - 实际飞行时长与季节飞行时长的差值须 **严格小于** `maxFlyingTimeDeviation`（默认 120 分钟；恰好等于阈值则剔除）。季节飞行时长未配置时跳过此项。
+   - 计划落地 vs 实际落地的延误：早到始终保留；晚到超过 `maxScheduleDeviation`（默认 120 分钟）则剔除（阈值处 **含等于**，即恰好晚 120 分钟仍保留）。
+4. 若合格样本数 ≥ `minHistoryFlight`（默认 20），对**全部**合格样本的飞行时长取**整数中位数**（偶数个样本时取中间两数之整数平均）。
+5. 样本不足时，若季节航班配置了正的 `flyingTime`，则回退到季节计划时长（`source: SEASONAL`）。
+6. 无季节航班，或样本不足且季节 `flyingTime` 未配置：返回 `flyingTime: null`、`source: NONE`（不再返回 `0`）。
 
 ### English Summary
+
 1. Load the active seasonal schedule and pick the flight matching the operation day.
-2. Query historical arrivals between `seasonStart - historyStartOffsetDays` and the target date, capped by `maxHistoryRows`.
+2. Query historical arrivals from `seasonStart - historyStartOffsetDays` through **the day before** the target operation date (the target date is excluded), capped by `maxHistoryRows`.
 3. Filter history by:
-   - matching operation day,
+   - matching operation day (digit-wise encoding, see below),
    - chronological timestamps (`previousDepartureTime < actualTime`),
    - scheduled date equals `flightDate`,
-   - actual flying time within `maxHistoryDelay` minutes of the seasonal value,
-   - arrival delay within `maxHistoryDelay`.
-4. Sort valid samples by scheduled time descending. If at least `minHistoryFlight` remain, average the latest `minHistoryFlight`; otherwise fall back to the seasonal flying time.
-5. When no seasonal schedule exists, return zero minutes with both `history` and `seasonal` set to `false`.
+   - actual flying time strictly within `maxFlyingTimeDeviation` of the seasonal value (exclusive at threshold; skipped when seasonal time is null),
+   - schedule delay: early arrivals always kept; late arrivals beyond `maxScheduleDeviation` rejected (inclusive at threshold).
+4. If at least `minHistoryFlight` qualified samples remain, return the **integer median** of all qualified durations (even count: average of the two middles, truncated to integer).
+5. Otherwise fall back to seasonal `flyingTime` when configured (`source: SEASONAL`).
+6. When no seasonal flight exists, or history is insufficient and seasonal time is missing, return `flyingTime: null` with `source: NONE`.
+
+### When estimates run
+
+Estimates are computed **on demand** when a client calls `GET /estt/flyTime/{flightNumber}/{flightDate}`. There is no background pre-computation. Seasonal and history queries used inside the calculation are cached (active season: 1 hour; seasonal flight and history lists: 4 hours).
+
+### Operation day encoding
+
+Seasonal `operationDays` is a string of digits **1–7** where **1 = Monday … 7 = Sunday** (ISO-8601 / `java.time.DayOfWeek`). Example: `"135"` means Monday, Wednesday, Friday. Invalid characters are ignored; duplicate digits are deduplicated.
+
+### Boundary rules (quick reference)
+
+| Rule | Boundary |
+|------|----------|
+| Schedule delay (late only) | Inclusive: `actual - scheduled ≤ maxScheduleDeviation` |
+| Flying-time vs seasonal | Exclusive: `|actual duration - seasonal| < maxFlyingTimeDeviation` |
+| History date window | Target operation date **excluded** (query ends at `flightDate - 1 day`) |
+
+### API contract notes
+
+- Use `source` (`HISTORY` / `SEASONAL` / `NONE`) to determine estimate origin. Legacy `history` and `seasonal` booleans are deprecated.
+- Treat `flyingTime == null` with `source == NONE` as “no estimate” (do not rely on `flyingTime == 0`).
+- The `message` field is for operators and logs only; **it is not a stable API contract** and may change without a version bump.
 
 ### 实现结构 (Implementation Structure)
-- `EsttService`：对外的服务入口，负责输入校验、缓存、日志/指标采集以及结果封装。
-- `HistoryFlightProvider`：封装历史数据的查询与业务过滤逻辑，确保分页与批量模式一致。
-- `FlyingTimeCalculator`：执行平均/兜底决策并记录 Micrometer 指标（数据来源、误差、准确度）。
+
+- `EsttService`：编排入口，负责输入校验、缓存、日志/指标及响应封装。
+- `HistoryFlightProvider`：历史数据查询与业务过滤（运营日、时间顺序、飞行时长容差等）。
+- `FlyingTimeCalculator`：中位数计算、季节回退/无估计决策及 Micrometer 指标。
 
 ## 技术栈 (Technology Stack)
 
-- **Language**: Kotlin 1.9.25
-- **Framework**: Micronaut 4.6.1
-- **Java**: 21 (LTS)
+- **Language**: Kotlin 2.3.21
+- **Framework**: Micronaut 5.0.2
+- **Java**: 25
 - **Database**: Oracle 19c
-- **Build Tool**: Gradle
-- **Testing**: Kotest 5.8.0
+- **Build Tool**: Gradle 9.x (wrapper)
+- **Testing**: Kotest 5.9.x
 
 ### Key Dependencies
 
@@ -70,10 +94,12 @@ This standalone microservice implements flight duration calculation logic that c
 
 ## 系统要求 (Requirements)
 
-- Java 21 or higher
+- JDK 25 (build, CI, and Docker runtime)
 - Oracle Database 19c or compatible version
 - 2GB+ RAM (recommended)
 - Network access to Oracle database
+
+> **CI / Docker alignment:** Drone builds use `gradle:9.5-jdk25`; the production image is based on `eclipse-temurin:25-jre-jammy`. Confirm your deployment platform provides JDK 25 images before tagging a release.
 
 ## 构建 (Build)
 
@@ -93,18 +119,18 @@ cd estt-calc-kotlin
 # Create distribution packages
 ./gradlew assembleDist
 
-# Run quality checks (tests + detekt + spotless)
+# Run quality checks (tests + spotless + coverage)
 ./gradlew check
 ```
 
 ### Build Artifacts
 
-The build produces several distribution formats:
+The build produces several distribution formats (version from `appVersion` in `gradle.properties`):
 
-- `build/libs/estt-calc-0.1.2.jar` - Standard JAR
-- `build/libs/estt-calc-0.1.2-all.jar` - Fat JAR (shadowJar)
-- `build/distributions/estt-calc-0.1.2.tar` - Distribution archive
-- `build/distributions/estt-calc-0.1.2.zip` - Distribution archive
+- `build/libs/estt-calc-<version>.jar` - Standard JAR
+- `build/libs/estt-calc-<version>-all.jar` - Fat JAR (shadowJar)
+- `build/distributions/estt-calc-<version>.tar` - Distribution archive
+- `build/distributions/estt-calc-<version>.zip` - Distribution archive
 
 ## 运行 (Running the Application)
 
@@ -131,17 +157,17 @@ docker run -d \
 
 ```bash
 # Download/build the shadow JAR
-java -jar build/libs/estt-calc-0.1.2-all.jar
+java -jar build/libs/estt-calc-*-all.jar
 ```
 
 #### Using Distribution Package
 
 ```bash
 # Extract the distribution
-unzip build/distributions/estt-calc-0.1.2.zip
+unzip build/distributions/estt-calc-*.zip
 
 # Run the startup script
-cd estt-calc-0.1.2
+cd estt-calc-*
 ./bin/estt-calc
 ```
 
@@ -160,16 +186,18 @@ Configuration can be set via environment variables or the `application.yml` file
 | `ORACLE_SID` | 数据库SID (Database SID) | SID name | `orcl` |
 | `ORACLE_USER` | 数据库用户名 (Database username) | Username | `cdjc` |
 | `ORACLE_PASS` | 数据库密码 (Database password) | Password | **Required (no default)** |
-| `MAX_DELAY` | 最大延误时间（分钟）(Max delay in minutes) | Integer | `120` |
-| `MIN_HISTORY` | 最少历史航班数 (Min historical flights) | Integer | `20` |
+| `MAX_SCHEDULE_DEVIATION` | 计划落地延误上限（分钟）；仅拒绝晚到 (Max late schedule deviation) | Integer | `120` |
+| `MAX_FLYING_TIME_DEVIATION` | 实际 vs 季节飞行时长容差（分钟）；阈值为开区间 (Flying-time tolerance) | Integer | `120` |
+| `MIN_HISTORY` | 最少合格历史航班数 (Min qualified historical flights) | Integer | `20` |
 | `START_MINUS` | 历史查询起始偏移天数 (History start offset days) | Integer | `60` |
 | `MAX_HISTORY_ROWS` | 历史航班查询最大数量 (Max history rows to fetch) | Integer | `300` |
 | `FLIGHT_NUMBER_PATTERN` | 航班号验证正则 (Flight number validation regex) | Regex | `^[A-Z]{2}[0-9]{3,4}$` |
 
 > Notes:
-> - The paginated history endpoint now pages directly at the repository layer and will never scan more than `MAX_HISTORY_ROWS` records for a request.
-> - `totalFiltered` reflects the number of filtered records scanned so far (bounded by `MAX_HISTORY_ROWS`). When `hasMore=true`, use `offset + limit` to request the next window.
-> - Delay filtering uses the absolute difference between scheduled and actual times to discard extreme early/late arrivals from calculations.
+> - `MAX_DELAY` / `max-history-delay` are **removed**. Use `MAX_SCHEDULE_DEVIATION` and `MAX_FLYING_TIME_DEVIATION` instead.
+> - The paginated history endpoint pages at the repository layer and scans at most `MAX_HISTORY_ROWS` records per request.
+> - `totalFiltered` reflects filtered records scanned so far (bounded by `MAX_HISTORY_ROWS`). When `hasMore=true`, use `offset + limit` for the next window.
+> - Schedule delay filtering is **asymmetric**: early arrivals are kept; only late arrivals beyond `MAX_SCHEDULE_DEVIATION` are dropped.
 
 ### 配置文件示例 (Configuration Example)
 
@@ -190,7 +218,8 @@ datasources:
 
 estt:
   calculation:
-    max-history-delay: 120
+    max-schedule-deviation: 120
+    max-flying-time-deviation: 120
     min-history-flight: 20
     date-format: 'yyMMdd'
     history-start-offset-days: 60
@@ -198,6 +227,8 @@ estt:
   validation:
     flight-number-pattern: '^[A-Z]{2}[0-9]{3,4}$'
 ```
+
+`yyMMdd` dates are parsed in the JVM default timezone with strict validation (exactly six digits; years 00–99 → 2000–2099).
 
 ## API 接口 (API Endpoints)
 
@@ -267,31 +298,95 @@ GET /estt/flyTime/{flightNumber}/{flightDate}
 
 **Example**: `/estt/flyTime/MU9941/211231`
 
-**Response**:
+**Response fields** (`FlyingTimeResponse`):
+
+| Field | Description |
+|-------|-------------|
+| `flyingTime` | Estimated minutes; `null` when `source` is `NONE` |
+| `source` | `HISTORY`, `SEASONAL`, or `NONE` (preferred over legacy booleans) |
+| `sampleSize` | Qualified historical flights used; `0` for seasonal/none |
+| `confidence` | `HIGH` when `source` is `HISTORY`; otherwise `NONE` |
+| `history` / `seasonal` | Deprecated; mirror `source` for backward compatibility |
+| `message` | Human-readable detail; **not stable** for programmatic use |
+
+**Examples**:
+
+History-based estimate:
+
+```bash
+curl -s "http://localhost:8080/estt/flyTime/MU9941/211231"
+```
+
 ```json
 {
   "flightNumber": "MU9941",
   "flightDate": "2021-12-31",
   "flyingTime": 95,
   "history": true,
-  "seasonal": true,
-  "message": "Calculated from 20 historical flights"
+  "seasonal": false,
+  "message": "Calculated from 22 historical flights",
+  "source": "HISTORY",
+  "sampleSize": 22,
+  "confidence": "HIGH"
 }
 ```
+
+Seasonal fallback (insufficient history):
+
+```json
+{
+  "flightNumber": "MU9941",
+  "flightDate": "2021-12-31",
+  "flyingTime": 90,
+  "history": false,
+  "seasonal": true,
+  "message": "Using seasonal flight flying time due to insufficient historical data",
+  "source": "SEASONAL",
+  "sampleSize": 0,
+  "confidence": "NONE"
+}
+```
+
+No estimate (no seasonal flight or no seasonal time configured):
+
+```json
+{
+  "flightNumber": "XX9999",
+  "flightDate": "2021-12-31",
+  "flyingTime": null,
+  "history": false,
+  "seasonal": false,
+  "message": "no seasonal flight for operation day",
+  "source": "NONE",
+  "sampleSize": 0,
+  "confidence": "NONE"
+}
+```
+
+**Consumer migration:** replace checks for `flyingTime == 0` with `source == "NONE"` or `flyingTime == null`.
 
 ### 验证规则 (Validation Rules)
 
 - Flight numbers must match format: `[A-Z]{2}[0-9]{3,4}` (e.g., MU9941, CA1234)
 - Flight numbers are case-insensitive (automatically converted to uppercase)
-- Date format must be `yyMMdd` (e.g., 211231 for Dec 31, 2021)
+- Date format must be `yyMMdd` (e.g., 211231 for Dec 31, 2021) — exactly six digits, strict parse; invalid dates return **400**
+- Trailing junk (e.g. `210101x`) and invalid calendar dates (e.g. `230229`) are rejected with **400**
 
 ### 错误响应 (Error Responses)
 
-- **400 Bad Request**: Invalid flight number or date format
+- **400 Bad Request**: Invalid flight number or date format (`InvalidFlightDateException` for bad dates)
 - **404 Not Found**: Seasonal flight or season not found (business case - no data exists)
 - **500 Internal Server Error**: System error (database failure, network issues, etc.)
 
-**Error Response Format**:
+**Validation error (invalid date)**:
+
+```json
+{
+  "message": "Invalid flight date: invalid"
+}
+```
+
+**Structured error (system failures)**:
 ```json
 {
   "status": 500,
@@ -435,9 +530,10 @@ fun getHistoryFlights(...): Result<List<HistoricalFlight>> {
 #### Error Classification
 
 **Business Cases** (Success with empty/null data):
-- No seasonal flight found → Returns `Result.success(null)` or empty response
-- Insufficient historical data → Uses seasonal schedule time
-- No historical flights → Returns empty list
+- No seasonal flight found → `source: NONE`, `flyingTime: null`
+- Insufficient historical data with seasonal time configured → `source: SEASONAL`
+- Insufficient historical data without seasonal time → `source: NONE`, `flyingTime: null`
+- No historical flights for history endpoint → Returns empty list
 
 **System Errors** (Failure):
 - Database connection timeout → `Result.failure(SQLException)`
@@ -463,7 +559,7 @@ fun getHistoryFlights(...): Result<List<HistoricalFlight>> {
 - **Monitoring**: Health checks and Prometheus metrics
 - **Documentation**: OpenAPI/Swagger integration with comprehensive API annotations
 - **Security**: Non-root Docker user, no hardcoded credentials, rate limiting ready
-- **Testing**: 96.4% test coverage with 112 tests using Kotest framework
+- **Testing**: Kotest with MockK; run `./gradlew test` and `./gradlew koverHtmlReport` for current coverage
 - **Code Quality**: Kotlin-native tooling (Kotest, MockK, Kover), refactored maintainable code
 - **Error Handling**: Result type pattern with flatMap for functional error propagation
 - **Observability**: MDC-based structured logging, Micrometer metrics for all endpoints
@@ -519,48 +615,39 @@ describe("calculate") {
 
 ### Test Coverage
 
-**Current Coverage:** 96.4% line coverage, 86.5% branch coverage (112 tests)
-
-| Package | Classes | Methods | Lines | Branches | Instructions |
-|---------|---------|---------|-------|----------|--------------|
-| **Service** | 75.0% | 94.7% | **95.8%** | **87.5%** | 96.7% |
-| **Controller** | 100% | 100% | **100%** | **83.3%** | 97.1% |
-| **Model** | 100% | 100% | **100%** | N/A | 100% |
-| **Exception** | 100% | 100% | **100%** | **100%** | 100% |
-| **Overall** | 80.0% | 92.1% | **96.4%** | **86.5%** | 95.2% |
+Run `./gradlew test koverHtmlReport` and open `build/reports/kover/html/index.html` for current line/branch coverage.
 
 ### Test Structure
 
 ```
 src/test/kotlin/com/gzzn/airport/
 ├── service/
-│   ├── EsttServiceTest.kt              # 20 core business logic tests (including pagination)
-│   └── EsttServiceEdgeCaseTest.kt      # 12 edge case & boundary tests
+│   ├── EsttServiceTest.kt
+│   ├── EsttServiceEdgeCaseTest.kt
+│   ├── EsttServiceErrorTest.kt
+│   ├── EsttServiceValidationAndMatchingTest.kt
+│   ├── calculator/FlyingTimeCalculatorTest.kt
+│   └── history/HistoryFlightProviderTest.kt
 ├── resource/
-│   ├── EsttControllerTest.kt           # 17 controller unit tests
-│   └── EsttControllerIntegrationTest.kt # Integration tests (optional)
+│   ├── EsttControllerTest.kt
+│   └── EsttControllerIntegrationTest.kt   # Micronaut HTTP tests (currently disabled via xdescribe)
 ├── exception/
-│   └── GlobalExceptionHandlerTest.kt   # 6 error handling tests
+│   └── GlobalExceptionHandlerTest.kt
 ├── model/
-│   └── ModelTest.kt                    # 5 data class tests (including operationDays validation)
+│   ├── ModelTest.kt
+│   └── OperationDaysTest.kt
 ├── repository/
-│   └── RepositoryTest.kt               # Repository injection tests
-├── ApplicationTest.kt                  # Application startup tests
-└── EsttCalcTest.kt                     # Integration tests
+│   └── RepositoryTest.kt
+├── ApplicationTest.kt
+└── EsttCalcTest.kt
 ```
-
-**Test Categories:**
-- ✅ **Unit Tests**: Service logic, controller logic, exception handling (60 tests)
-- ✅ **Edge Cases**: Boundary conditions, null handling, error scenarios (12 tests)
-- ✅ **Integration Tests**: Full stack testing with H2 database (optional, 6 tests)
-- ✅ **Model Tests**: Data class validation (5 tests, including new validation)
 
 ## 开发 (Development)
 
 ### Prerequisites
 
-- JDK 21
-- Oracle Database (or H2 for testing)
+- JDK 25
+- Oracle Database (or H2 for tests)
 - IDE with Kotlin support (IntelliJ IDEA recommended)
 
 ### Running in Development Mode
@@ -590,8 +677,8 @@ Use environment variables to configure different environments (dev, test, prod) 
 
 ## 性能优化 (Performance Optimizations)
 
-1. **Database Query Limits**: Maximum 100 rows fetched per history query
-2. **Caching**: Active season cached for 1 hour
+1. **Database Query Limits**: Up to `maxHistoryRows` (default 300) per history query
+2. **Caching**: Active season cached for 1 hour; seasonal flight and history lists for 4 hours
 3. **Connection Pooling**: HikariCP for efficient database connections
 4. **JVM Tuning**: Container-aware heap management
 
@@ -606,7 +693,18 @@ Configure log levels in `logback.xml` or via environment variables.
 
 ## 版本历史 (Version History)
 
-- **v0.1.2** (Current - 2025-11-06)
+See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
+
+- **v0.1.1** (2026-06-29 — logic v2)
+  - Median over all qualified history (replaces mean of latest 20)
+  - Split schedule vs flying-time deviation; asymmetric late-only schedule filter
+  - API v2: nullable `flyingTime`, `source` / `sampleSize` / `confidence`; deprecated `history`/`seasonal`
+  - Strict `yyMMdd` parsing; invalid dates → HTTP 400
+  - History window excludes target operation date
+  - Micronaut 5.0.2 / JDK 25; Drone `./gradlew` pipeline; Docker Temurin 25 JRE
+  - OpenAPI via Micronaut annotations and Swagger UI (`/swagger-ui`)
+
+- **v0.1.2** (2025-11-06)
   - 🔧 **Code Quality & Performance Improvements**
     - **Pagination Optimization**: Moved history pagination from in-memory to repository level, preventing incomplete results and improving efficiency
     - **Query Optimization**: Added date consistency filter (`TRUNC(SCHEDULED_DATETIME) = flight_date`) to reduce invalid data fetching
@@ -663,35 +761,7 @@ Configure log levels in `logback.xml` or via environment variables.
     - All parameters externalized via environment variables
 
 - **v0.1.0** (2025-11-05)
-  - 🚀 Upgraded to Java 21 and Micronaut 4.6.1
-  - 🔧 Upgraded to Kotlin 1.9.25
-  - 🔒 Enhanced security: removed default passwords, updated Docker to Eclipse Temurin 21
-  - ✅ **Migrated to Kotest testing framework**
-    - Replaced Spock/Groovy tests with Kotest (pure Kotlin)
-    - 72 comprehensive tests covering all layers
-    - **96.4% line coverage, 86.5% branch coverage**
-    - BDD-style testing with describe/it blocks
-    - Modern matchers and assertions
-    - Better IDE support and faster execution
-  - 📊 **Comprehensive test coverage**
-    - Service: 95.8% line coverage, 87.5% branch coverage
-    - Controller: 100% line coverage, 83.3% branch coverage
-    - Exception handlers: 100% coverage
-    - Models: 100% coverage
-  - 🔧 Added Kover for Kotlin-native code coverage reporting
-  - ⚡ Performance optimizations: caching, query limits (max-history-rows: 300)
-  - 📚 Added OpenAPI/Swagger documentation
-  - 🛡️ **Improved error handling with Result type pattern**
-    - Service methods return `Result<T>` for clear error classification
-    - Distinguishes business cases (404) from system errors (500)
-    - Enhanced exception propagation through call chain
-    - Comprehensive error logging for monitoring and debugging
-    - Updated test suite to verify Result behavior
-  - 🎯 Added input validation and flight number regex configuration
-  - 📊 Added health checks and Prometheus metrics
-  - 🔧 Configurable parameters: max-history-rows, flight-number-pattern
-  - 🐛 Fixed operation day matching bug
-  - 📝 Comprehensive README update with testing guide
+  - Initial Kotest migration; Java 21 / Micronaut 4.6 era (superseded by v0.1.1 toolchain upgrade)
 
 - **v0.0.21** (Legacy)
   - Initial stable release

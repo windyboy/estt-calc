@@ -19,6 +19,9 @@ interface HistoryFlightRepository {
 
     /**
      * Fetches arrival history capped by `maxRows`, ordered by most recent flight date.
+     *
+     * `flight_date BETWEEN :startDate AND :endDate` is inclusive on both bounds; callers pass
+     * the day before the target operation date as `endDate` to exclude the flight being estimated.
      */
     @Query(
         """

@@ -192,7 +192,7 @@ open class EsttController(
     @Operation(
         summary = "Calculate flying time",
         description = "Calculates estimated flying time based on historical data or seasonal schedule. " +
-            "Uses average of recent flights if sufficient history exists (min 20 flights), " +
+            "Uses the median of qualified flights when sufficient history exists (min 20 flights), " +
             "otherwise uses the seasonal schedule flying time.",
     )
     @ApiResponses(

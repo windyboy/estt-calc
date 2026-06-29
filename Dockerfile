@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:25-jre-jammy
 LABEL maintainer="fengzhq@it2000.com.cn"
 
 WORKDIR /opt/app

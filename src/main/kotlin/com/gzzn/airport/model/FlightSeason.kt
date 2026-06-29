@@ -14,9 +14,4 @@ import java.time.LocalDate
  */
 @Serdeable
 @MappedEntity
-data class FlightSeason(
-    val seasonId: Long,
-    val seasonName: String,
-    val seasonStart: LocalDate,
-    val seasonEnd: LocalDate,
-)
+data class FlightSeason(val seasonId: Long, val seasonName: String, val seasonStart: LocalDate, val seasonEnd: LocalDate)

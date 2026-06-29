@@ -24,12 +24,10 @@ enum class ErrorCode(val code: String, val httpStatus: Int) {
      * @param message the error message
      * @return an ErrorResponse object
      */
-    fun toErrorResponse(message: String): ErrorResponse {
-        return ErrorResponse(
-            status = httpStatus,
-            error = code,
-            message = message,
-            timestamp = Instant.now(),
-        )
-    }
+    fun toErrorResponse(message: String): ErrorResponse = ErrorResponse(
+        status = httpStatus,
+        error = code,
+        message = message,
+        timestamp = Instant.now(),
+    )
 }

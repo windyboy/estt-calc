@@ -9,7 +9,7 @@ import java.time.LocalDate
  *
  * @property flightNumber carrier flight identifier (already normalized to uppercase).
  * @property operationDays digits representing operating days of week (1 = Monday ... 7 = Sunday).
- * @property flyingTime scheduled flying time in minutes.
+ * @property flyingTime scheduled flying time in minutes; `null` when not configured.
  * @property seasonStart start date of the applicable season.
  * @property seasonEnd end date of the applicable season.
  */
@@ -18,7 +18,7 @@ import java.time.LocalDate
 data class SeasonalFlight(
     val flightNumber: String,
     val operationDays: String,
-    val flyingTime: Long,
+    val flyingTime: Long?,
     val seasonStart: LocalDate,
     val seasonEnd: LocalDate,
 ) {
