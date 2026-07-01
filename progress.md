@@ -458,3 +458,69 @@ Results:
 - Escalated full `./gradlew test` passed.
 
 Next phase is Phase 5: Deeper internal Kotlin refactor.
+
+
+### Phase 5 deeper internal Kotlin refactor completed
+
+Executed Phase 5.
+
+Changed files:
+
+- `src/main/kotlin/com/gzzn/airport/service/EsttService.kt`
+- `src/main/kotlin/com/gzzn/airport/service/history/HistoryFlightProvider.kt`
+- `task_plan.md`
+- `findings.md`
+- `progress.md`
+
+Refactor summary:
+
+- Extracted calculation telemetry/MDC/timer handling into a private helper in `EsttService`.
+- Extracted calculated-response mapping into a private helper in `EsttService`.
+- Kept all public signatures and observable behaviors unchanged.
+
+Verification commands run:
+
+```bash
+./gradlew test --tests com.gzzn.airport.service.EsttServiceTest --tests com.gzzn.airport.service.EsttServiceValidationAndMatchingTest --tests com.gzzn.airport.service.EsttServiceErrorTest --tests com.gzzn.airport.service.history.HistoryFlightProviderTest --tests com.gzzn.airport.service.calculator.FlyingTimeCalculatorTest --tests com.gzzn.airport.resource.EsttControllerTest
+./gradlew check
+```
+
+Results:
+
+- Focused service/history/controller tests passed.
+- Initial `./gradlew check` failed only on Spotless formatting in the refactored files.
+- Ran `./gradlew spotlessApply` (formatting-only).
+- Re-ran `./gradlew check`; it passed.
+
+### Phase 6 split oversized private/internal components completed
+
+Executed Phase 6.
+
+Changed files:
+
+- `src/main/kotlin/com/gzzn/airport/service/history/HistoryPaginationScanner.kt`
+- `src/main/kotlin/com/gzzn/airport/service/history/HistoryFlightProvider.kt`
+- `task_plan.md`
+- `findings.md`
+- `progress.md`
+
+Refactor summary:
+
+- Split the pagination scan loop into a dedicated internal helper class `HistoryPaginationScanner`.
+- Preserved the same chunking, filtering, offset/limit, and `hasMore` semantics.
+
+Verification commands run:
+
+```bash
+./gradlew test --tests com.gzzn.airport.service.history.HistoryFlightProviderTest --tests com.gzzn.airport.service.EsttServiceTest --tests com.gzzn.airport.service.EsttServiceValidationAndMatchingTest --tests com.gzzn.airport.service.EsttServiceErrorTest
+./gradlew check
+```
+
+Results:
+
+- Focused service/history tests passed.
+- Initial `./gradlew check` failed only on Spotless formatting in the new scanner file.
+- Ran `./gradlew spotlessApply` (formatting-only).
+- Re-ran `./gradlew check`; it passed.
+
+Next phase is Phase 7: Final behavior verification and documentation sync.

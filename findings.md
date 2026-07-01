@@ -306,3 +306,21 @@ These should be preserved and not overwritten without user approval.
   - Escalated focused test run passed for `OperationDaysTest` and `FlyingTimeCalculatorTest`.
   - Escalated full `./gradlew test` passed.
 - These tests lock behavior needed before refactoring `OperationDays` and `FlyingTimeCalculator` internals.
+
+
+## Phase 5 execution findings: deeper internal Kotlin refactor
+
+- `EsttService.calculate` now delegates MDC and timing concerns to `withCalculationTelemetry`, reducing nested orchestration while preserving the same logging, success/failure metrics, and MDC cleanup.
+- `EsttService.calculateWithSeasonalFlight` now delegates response mapping to `buildCalculatedResponse`, keeping the no-estimate branch and legacy `FlyingTimeResponse` mapping unchanged.
+- These changes were verified with focused service/controller/history tests and the full `./gradlew check` suite.
+- Spotless required a formatting pass on the refactored files; `./gradlew spotlessApply` was run, then `./gradlew check` passed.
+
+## Phase 6 execution findings: split oversized private/internal components
+
+- Extracted the paginated-history scan loop from `HistoryFlightProvider` into a dedicated internal helper class `HistoryPaginationScanner`.
+- `HistoryFlightProvider` now focuses on window derivation, business filtering, and metric emission, while the scanner owns chunking, offset/limit application, `totalFiltered`, and `hasMore` derivation.
+- Scanner behavior remains unchanged: raw fetches are chunked with `maxOf(limit, 100)`, filtered results are paged after filtering, and `hasMore` still reflects observed extra filtered rows or scan-limit truncation.
+- Verification:
+  - Focused tests for `HistoryFlightProviderTest`, `EsttServiceTest`, `EsttServiceValidationAndMatchingTest`, and `EsttServiceErrorTest` passed.
+  - Full `./gradlew check` passed after applying Spotless formatting to the new scanner file.
+- Pre-existing working-tree changes remain untouched: `InvalidFlightDateException.kt`, `InvalidFlightDateExceptionHandler.kt`, `FlyingTimeCalculator.kt`, `GlobalExceptionHandlerTest.kt`, `.gitignore`, `.codex/`, and `.cursor/`.

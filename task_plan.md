@@ -172,8 +172,8 @@ Focused commands for planned refactor zones:
 | Phase 2: Complexity and duplication audit | complete | Low | Identified concrete private/internal refactor opportunities. |
 | Phase 3: Restore/improve bilingual KDoc and inline docs | complete | Low | Added concise Chinese-first, English-second comments for major business logic. |
 | Phase 4: Characterization tests for risky behavior | complete | Medium | Added characterization tests and verified behavior before deeper refactors. |
-| Phase 5: Deeper internal Kotlin refactor | pending | Medium | Extract private helpers and reduce duplication without API/behavior changes. |
-| Phase 6: Split oversized private/internal components | pending | Medium | Split cohesive private/internal implementation details when justified. |
+| Phase 5: Deeper internal Kotlin refactor | complete | Medium | Extracted private helpers and reduced duplication without API/behavior changes. |
+| Phase 6: Split oversized private/internal components | complete | Medium | Split paginated history scanning into a dedicated internal helper. |
 | Phase 7: Final behavior verification and documentation sync | pending | Low-Medium | Verify behavior and sync docs only if structure changed. |
 
 ### Phase 0: Second-pass baseline and previous diff review
@@ -439,7 +439,7 @@ git diff --check
 
 ### Phase 5: Deeper internal Kotlin refactor
 
-**Status:** pending
+**Status:** complete
 
 **Goal**
 
@@ -500,7 +500,7 @@ git diff --check
 
 ### Phase 6: Split oversized private/internal components
 
-**Status:** pending
+**Status:** complete
 
 **Goal**
 
