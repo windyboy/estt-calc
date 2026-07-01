@@ -273,26 +273,9 @@ open class EsttService(
      */
     open fun calculate(flightNumber: String, flightDate: LocalDate): Result<FlyingTimeResponse> {
         validateInputs(flightNumber, flightDate)
-
-        // 仅添加本次计算需要的 MDC 键，finally 中会逐个移除。
-        // Add only the MDC keys needed for this calculation; finally removes them individually.
-        MDC.put("flightNumber", flightNumber)
-        MDC.put("flightDate", flightDate.toString())
-
-        // 计时器覆盖完整计算流程，成功和失败都会停止并记录。
-        // The timer covers the full calculation pipeline and is stopped for both success and failure.
-        val timer = Timer.start(meterRegistry)
-
-        try {
+        return withCalculationTelemetry(flightNumber, flightDate) {
             log.info("Starting flying time calculation")
-            return fetchAndCalculate(flightNumber, flightDate)
-                .onSuccess { response -> recordSuccessMetrics(timer, response) }
-                .onFailure { e -> recordFailureMetrics(timer, e) }
-        } finally {
-            // 只移除本方法写入的键，避免清空调用链中已有的 MDC 上下文。
-            // Remove only keys written here so upstream MDC context is not cleared.
-            MDC.remove("flightNumber")
-            MDC.remove("flightDate")
+            fetchAndCalculate(flightNumber, flightDate)
         }
     }
 
@@ -350,6 +333,32 @@ open class EsttService(
         ).increment()
     }
 
+    private fun withCalculationTelemetry(
+        flightNumber: String,
+        flightDate: LocalDate,
+        block: () -> Result<FlyingTimeResponse>,
+    ): Result<FlyingTimeResponse> {
+        // 仅添加本次计算需要的 MDC 键，finally 中会逐个移除。
+        // Add only the MDC keys needed for this calculation; finally removes them individually.
+        MDC.put("flightNumber", flightNumber)
+        MDC.put("flightDate", flightDate.toString())
+
+        // 计时器覆盖完整计算流程，成功和失败都会停止并记录。
+        // The timer covers the full calculation pipeline and is stopped for both success and failure.
+        val timer = Timer.start(meterRegistry)
+
+        try {
+            return block()
+                .onSuccess { response -> recordSuccessMetrics(timer, response) }
+                .onFailure { e -> recordFailureMetrics(timer, e) }
+        } finally {
+            // 只移除本方法写入的键，避免清空调用链中已有的 MDC 上下文。
+            // Remove only keys written here so upstream MDC context is not cleared.
+            MDC.remove("flightNumber")
+            MDC.remove("flightDate")
+        }
+    }
+
     /**
      * Record metrics for failed calculation.
      * @param timer the timer to stop.
@@ -385,26 +394,32 @@ open class EsttService(
     ): Result<FlyingTimeResponse> = getHistoryFlightsWithSeasonFlight(seasonalFlight, flightDate)
         .map { historyFlights ->
             val result = flyingTimeCalculator.calculate(seasonalFlight, flightNumber, historyFlights)
-            if (result.source == EstimateSource.NONE) {
-                buildNoEstimateResponse(
-                    flightNumber,
-                    flightDate,
-                    NoEstimateReason.INSUFFICIENT_HISTORY_NO_SEASONAL_TIME,
-                )
-            } else {
-                FlyingTimeResponse(
-                    flightNumber,
-                    flightDate,
-                    result.flyingTime,
-                    result.historyUsed,
-                    result.source == EstimateSource.SEASONAL,
-                    result.message,
-                    result.source,
-                    result.sampleSize,
-                    result.confidence,
-                )
-            }
+            buildCalculatedResponse(flightNumber, flightDate, result)
         }
+
+    private fun buildCalculatedResponse(
+        flightNumber: String,
+        flightDate: LocalDate,
+        result: FlyingTimeCalculator.Result,
+    ): FlyingTimeResponse = if (result.source == EstimateSource.NONE) {
+        buildNoEstimateResponse(
+            flightNumber,
+            flightDate,
+            NoEstimateReason.INSUFFICIENT_HISTORY_NO_SEASONAL_TIME,
+        )
+    } else {
+        FlyingTimeResponse(
+            flightNumber,
+            flightDate,
+            result.flyingTime,
+            result.historyUsed,
+            result.source == EstimateSource.SEASONAL,
+            result.message,
+            result.source,
+            result.sampleSize,
+            result.confidence,
+        )
+    }
 
     private fun buildNoEstimateResponse(flightNumber: String, flightDate: LocalDate, reason: NoEstimateReason): FlyingTimeResponse =
         FlyingTimeResponse(

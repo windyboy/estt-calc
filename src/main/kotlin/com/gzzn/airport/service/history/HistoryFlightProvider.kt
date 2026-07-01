@@ -71,6 +71,26 @@ class HistoryFlightProvider(
      */
     fun getPaginatedHistory(seasonalFlight: SeasonalFlight, flightDate: LocalDate, offset: Int, limit: Int): PaginatedHistoryResponse {
         val window = historyWindow(seasonalFlight, flightDate)
+        val scanResult = scanPaginatedHistory(seasonalFlight, window, offset, limit)
+        val response = PaginatedHistoryResponse(
+            items = scanResult.items,
+            totalFiltered = scanResult.totalFiltered,
+            offset = offset,
+            limit = limit,
+            hasMore = scanResult.hasMore,
+        )
+        recordPaginatedHistoryMetrics(response, offset, limit)
+        return response
+    }
+
+    private data class PaginatedHistoryScanResult(val items: List<HistoricalFlight>, val totalFiltered: Int, val hasMore: Boolean)
+
+    private fun scanPaginatedHistory(
+        seasonalFlight: SeasonalFlight,
+        window: HistoryWindow,
+        offset: Int,
+        limit: Int,
+    ): PaginatedHistoryScanResult {
         val items = mutableListOf<HistoricalFlight>()
         var totalFiltered = 0
         var observedMore = false
@@ -123,15 +143,11 @@ class HistoryFlightProvider(
 
         val reportedTotal = minOf(totalFiltered, config.maxHistoryRows)
         val hasMore = observedMore || reportedTotal > offset + items.size || truncatedByScanLimit
-        val response = PaginatedHistoryResponse(
+        return PaginatedHistoryScanResult(
             items = items,
             totalFiltered = reportedTotal,
-            offset = offset,
-            limit = limit,
             hasMore = hasMore,
         )
-        recordPaginatedHistoryMetrics(response, offset, limit)
-        return response
     }
 
     private fun recordPaginatedHistoryMetrics(response: PaginatedHistoryResponse, offset: Int, limit: Int) {
