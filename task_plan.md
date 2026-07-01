@@ -58,7 +58,7 @@ Useful focused commands:
 | Phase 3: Characterization tests | complete | Added characterization tests for schedule-deviation boundaries, integer median behavior, and flying-time tolerance filtering. |
 | Phase 4: Low-risk Kotlin simplification | complete | Simplified private history-window/filtering helpers in `HistoryFlightProvider` while preserving behavior. |
 | Phase 5: Split oversized classes/functions | complete | Extracted calculation input validation from `EsttService` into an internal helper while preserving public API and behavior. |
-| Phase 6: Final verification | pending | Full checks and diff review. |
+| Phase 6: Final verification | complete | Final `./gradlew check`, `git diff --check`, and status review completed successfully; remaining changes are pre-existing/unrelated. |
 
 ### Phase 0: Baseline verification
 
@@ -350,7 +350,16 @@ Verification completed successfully with focused service tests, full test suite,
 
 ### Phase 6: Final verification
 
-**Status:** pending
+**Status:** complete
+
+Completed on 2026-07-01. Final verification results:
+
+- Created Phase 5 commit `d6a84fa Extract ESTT input validation`.
+- `git diff --check` passed.
+- `./gradlew check` passed.
+- `git status --short` reviewed; remaining uncommitted files are pre-existing/unrelated to the completed phases in this plan.
+
+No additional behavior changes were made during final verification.
 
 1. **Goal**
    - Prove the completed documentation/test/refactor work preserved behavior and meets constraints.

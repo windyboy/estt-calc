@@ -247,3 +247,33 @@ Results:
 - Rerun `./gradlew check` passed.
 
 Updated `task_plan.md` to mark Phase 5 complete. Phase 6 remains pending.
+
+### Phase 6 final verification completed
+
+Created commit for the previous phase first:
+
+- `d6a84fa Extract ESTT input validation`
+
+Then executed Phase 6 final verification.
+
+Verification commands run:
+
+```bash
+git diff --check
+./gradlew check
+git status --short
+```
+
+Results:
+
+- `git diff --check` passed.
+- `./gradlew check` passed.
+- `git status --short` was reviewed. Remaining uncommitted files are pre-existing/unrelated to the planned documentation/test/refactor commits:
+  - `.gitignore`
+  - `src/main/kotlin/com/gzzn/airport/exception/InvalidFlightDateException.kt`
+  - `src/main/kotlin/com/gzzn/airport/exception/InvalidFlightDateExceptionHandler.kt`
+  - `src/main/kotlin/com/gzzn/airport/service/calculator/FlyingTimeCalculator.kt`
+  - `src/test/kotlin/com/gzzn/airport/exception/GlobalExceptionHandlerTest.kt`
+  - `.codex/`
+
+Updated `task_plan.md` to mark Phase 6 complete. All planned phases are now complete.
