@@ -38,18 +38,6 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
     }
 
     /**
-     * Validates seasonal flight metadata when the seasonal fallback path is used.
-     *
-     * @throws IllegalArgumentException when the seasonal flying time is zero or negative.
-     */
-    fun ensureValidSeasonalFlight(seasonalFlight: SeasonalFlight, flightNumber: String) {
-        val flyingTime = seasonalFlight.flyingTime
-        require(flyingTime != null && flyingTime > 0) {
-            "Invalid seasonal flight time: $flyingTime for flight $flightNumber"
-        }
-    }
-
-    /**
      * 从预过滤的历史样本计算飞行时长。
      * Calculates flying time from pre-filtered historical samples.
      *
@@ -67,64 +55,79 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
         )
 
         if (qualifiedFlights.size >= config.minHistoryFlight) {
-            val flyingTime = medianFlyingTime(qualifiedFlights)
-            log.info(
-                "{}: Calculated flying time {} minutes from {} historical flights",
-                flightNumber,
-                flyingTime,
-                qualifiedFlights.size,
-            )
-
-            meterRegistry.counter("estt.calculation.source", "source", "history").increment()
-            seasonalFlight.flyingTime?.let { seasonalTime ->
-                val accuracy = abs(flyingTime - seasonalTime)
-                meterRegistry.counter("estt.calculation.accuracy", "accuracy", accuracy.toString()).increment()
-                if (accuracy <= 10) {
-                    meterRegistry.counter("estt.calculation.high_accuracy", "source", "history").increment()
-                }
-            }
-
-            return Result(
-                flyingTime = flyingTime,
-                source = EstimateSource.HISTORY,
-                sampleSize = qualifiedFlights.size,
-                confidence = Confidence.HIGH,
-                message = "Calculated from ${qualifiedFlights.size} historical flights",
-            )
+            return historyResult(seasonalFlight, flightNumber, qualifiedFlights)
         }
 
         val seasonalTime = seasonalFlight.flyingTime
         if (seasonalTime != null && seasonalTime > 0) {
-            log.warn(
-                "{}: Insufficient history ({}/{}). Using seasonal time: {} minutes",
-                flightNumber,
-                qualifiedFlights.size,
-                config.minHistoryFlight,
-                seasonalTime,
-            )
-            meterRegistry.counter("estt.calculation.source", "source", "schedule").increment()
-            return Result(
-                flyingTime = seasonalTime,
-                source = EstimateSource.SEASONAL,
-                sampleSize = 0,
-                confidence = Confidence.NONE,
-                message = "Using seasonal flight flying time due to insufficient historical data",
-            )
+            return seasonalFallbackResult(flightNumber, qualifiedFlights.size, seasonalTime)
         }
 
+        return noEstimateResult(flightNumber, qualifiedFlights.size)
+    }
+
+    private fun historyResult(seasonalFlight: SeasonalFlight, flightNumber: String, qualifiedFlights: List<HistoricalFlight>): Result {
+        val flyingTime = medianFlyingTime(qualifiedFlights)
+        log.info(
+            "{}: Calculated flying time {} minutes from {} historical flights",
+            flightNumber,
+            flyingTime,
+            qualifiedFlights.size,
+        )
+
+        meterRegistry.counter("estt.calculation.source", "source", "history").increment()
+        recordHistoryAccuracyMetrics(seasonalFlight.flyingTime, flyingTime)
+
+        return Result(
+            flyingTime = flyingTime,
+            source = EstimateSource.HISTORY,
+            sampleSize = qualifiedFlights.size,
+            confidence = Confidence.HIGH,
+            message = "Calculated from ${qualifiedFlights.size} historical flights",
+        )
+    }
+
+    private fun seasonalFallbackResult(flightNumber: String, qualifiedCount: Int, seasonalTime: Long): Result {
+        log.warn(
+            "{}: Insufficient history ({}/{}). Using seasonal time: {} minutes",
+            flightNumber,
+            qualifiedCount,
+            config.minHistoryFlight,
+            seasonalTime,
+        )
+        meterRegistry.counter("estt.calculation.source", "source", "schedule").increment()
+        return Result(
+            flyingTime = seasonalTime,
+            source = EstimateSource.SEASONAL,
+            sampleSize = 0,
+            confidence = Confidence.NONE,
+            message = "Using seasonal flight flying time due to insufficient historical data",
+        )
+    }
+
+    private fun noEstimateResult(flightNumber: String, qualifiedCount: Int): Result {
         log.warn(
             "{}: Insufficient history ({}/{}) and no seasonal flying time configured",
             flightNumber,
-            qualifiedFlights.size,
+            qualifiedCount,
             config.minHistoryFlight,
         )
         return Result(
             flyingTime = null,
             source = EstimateSource.NONE,
-            sampleSize = qualifiedFlights.size,
+            sampleSize = qualifiedCount,
             confidence = Confidence.NONE,
             message = NoEstimateReason.INSUFFICIENT_HISTORY_NO_SEASONAL_TIME.message,
         )
+    }
+
+    private fun recordHistoryAccuracyMetrics(seasonalFlyingTime: Long?, computedFlyingTime: Long) {
+        seasonalFlyingTime ?: return
+        val accuracy = abs(computedFlyingTime - seasonalFlyingTime)
+        meterRegistry.counter("estt.calculation.accuracy", "accuracy", accuracy.toString()).increment()
+        if (accuracy <= 10) {
+            meterRegistry.counter("estt.calculation.high_accuracy", "source", "history").increment()
+        }
     }
 
     /**
