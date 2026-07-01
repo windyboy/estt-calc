@@ -58,12 +58,24 @@ This is not a freshly executed baseline for this task; it is an inspection of pr
 - Do not perform opportunistic bug fixes.
 - Do not reformat unrelated files.
 
-### Next recommended action
+### Phase 0 baseline verification completed
 
-Ask for approval to start Phase 0 baseline verification. Recommended first command:
+User ran the baseline verification commands after the planning commit:
 
 ```bash
-./gradlew test
+./gradlew clean test
+./gradlew build
 ```
 
-Then record results in `progress.md` and update `findings.md` with any failures/skips/warnings.
+Results:
+
+- `./gradlew clean test` completed successfully with exit code 0 in 11.6048 seconds.
+- `./gradlew build` completed successfully with exit code 0 in 86.6292 seconds.
+- This is the clean baseline before documentation or Kotlin simplification changes.
+- Build output included non-failing warnings about Gradle/JDK native access and duplicate entries in the shadow JAR; the build still completed successfully.
+
+Updated `task_plan.md` to mark Phase 0 complete and keep Phases 1-6 pending.
+
+### Next recommended action
+
+Proceed to Phase 1: Documentation inventory. Keep changes limited to planning notes until the user approves documentation edits.

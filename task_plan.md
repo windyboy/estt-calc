@@ -52,15 +52,26 @@ Useful focused commands:
 
 | Phase | Status | Notes |
 |---|---|---|
-| Phase 0: Baseline verification | planned | Commands identified; existing test reports inspected, but no baseline command was run during this first planning pass. |
-| Phase 1: Documentation inventory | planned | README inspected; no `docs/` directory found. |
-| Phase 2: Low-risk documentation improvements | planned | README/docs-only changes after approval to proceed beyond planning. |
-| Phase 3: Characterization tests | planned | Add tests before production refactors. |
-| Phase 4: Low-risk Kotlin simplification | planned | Private/helper-level simplification only. |
-| Phase 5: Split oversized classes/functions | planned | Preserve public API and behavior. |
-| Phase 6: Final verification | planned | Full checks and diff review. |
+| Phase 0: Baseline verification | complete | Clean baseline completed successfully with `./gradlew clean test` and `./gradlew build`. |
+| Phase 1: Documentation inventory | pending | README inspected; no `docs/` directory found. |
+| Phase 2: Low-risk documentation improvements | pending | README/docs-only changes after approval to proceed beyond planning. |
+| Phase 3: Characterization tests | pending | Add tests before production refactors. |
+| Phase 4: Low-risk Kotlin simplification | pending | Private/helper-level simplification only. |
+| Phase 5: Split oversized classes/functions | pending | Preserve public API and behavior. |
+| Phase 6: Final verification | pending | Full checks and diff review. |
 
 ## Phase 0: Baseline verification
+
+**Status: Complete**
+
+Baseline commands completed successfully on 2026-07-01:
+
+```bash
+./gradlew clean test
+./gradlew build
+```
+
+Result: both commands exited with code 0. This is the clean baseline before documentation or Kotlin simplification changes.
 
 1. **Goal**
    - Establish a clean, reproducible baseline before any source or documentation edits.
