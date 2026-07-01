@@ -89,7 +89,8 @@ Seasonal `operationDays` is a string of digits **1–7** where **1 = Monday … 
 
 ### 实现结构 (Implementation Structure)
 
-- `EsttService`：编排入口，负责输入校验、缓存、日志/指标及响应封装。
+- `EsttService`：编排入口，负责缓存、日志/指标及响应封装。
+- `EsttInputValidator`：内部计算输入校验，保留现有错误消息和日期边界规则。
 - `HistoryFlightProvider`：历史数据查询与业务过滤（运营日、时间顺序、飞行时长容差等）。
 - `FlyingTimeCalculator`：中位数计算、季节回退/无估计决策及 Micrometer 指标。
 
@@ -489,7 +490,10 @@ Interactive API documentation and testing interface
 ### Key Components
 
 - **EsttController**: REST API endpoints with validation
-- **EsttService**: Core business logic and calculation algorithm
+- **EsttService**: Orchestrates seasonal lookup, history retrieval, calculation, metrics, and responses
+- **EsttInputValidator**: Internal calculation input validation helper
+- **HistoryFlightProvider**: Historical flight retrieval, pagination, and eligibility filtering
+- **FlyingTimeCalculator**: Median calculation, seasonal fallback, no-estimate decisions, and calculation metrics
 - **SeasonRepository**: Access to seasonal flight schedules
 - **HistoryFlightRepository**: Access to historical flight records
 - **GlobalExceptionHandler**: Centralized error handling
@@ -722,6 +726,13 @@ Configure log levels in `logback.xml` or via environment variables.
 ## 版本历史 (Version History)
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
+
+- **2026-07-01** (documentation and safe refactor pass)
+  - Added README Quick Start and `docs/development.md` developer workflow/troubleshooting guide
+  - Added characterization tests for schedule-deviation boundaries, integer median behavior, and flying-time tolerance filtering
+  - Extracted calculation input validation into internal `EsttInputValidator`
+  - Simplified private history-window/filtering helpers in `HistoryFlightProvider`
+  - Verified with focused tests, full `./gradlew test`, and `./gradlew check`
 
 - **v0.1.1** (2026-06-29 — logic v2)
   - Median over all qualified history (replaces mean of latest 20)

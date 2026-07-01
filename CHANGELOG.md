@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-07-01 — Documentation and safe refactor pass
+
+### Documentation
+
+- Added a Quick Start section to README with baseline verification and local run commands.
+- Added `docs/development.md` for developer workflow, project structure, configuration notes, troubleshooting, and known limitations.
+
+### Tests
+
+- Added characterization tests for schedule-deviation boundaries, integer median behavior, and flying-time tolerance filtering.
+
+### Code quality
+
+- Extracted calculation input validation from `EsttService` into internal `EsttInputValidator` while preserving public API and validation messages.
+- Simplified private history-window and eligibility-filtering helpers in `HistoryFlightProvider` without changing repository SQL, metrics, cache names, API output, or behavior.
+
+### Verification
+
+- Verified with focused tests, full `./gradlew test`, and `./gradlew check`.
+
+---
+
 ## 2026-06-29 — Post-review improvements (v2 plan)
 
 ### API v2
