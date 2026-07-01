@@ -545,3 +545,43 @@ Results:
 - The remaining uncommitted files are pre-existing/user changes and were left untouched.
 
 Second refactoring pass implementation work is complete.
+
+### Plan correction session (2026-06-29)
+
+User requested correction of planning inconsistencies identified in review.
+
+Actions performed:
+
+- Updated `task_plan.md`:
+  - Corrected Phases 5–6 to `partial`, Phase 7 to `superseded`.
+  - Added Phases 8–11 for remaining refactors, uncommitted work reconciliation, and final verification redo.
+  - Removed stale plan-only stop point; set next action to Phase 8.
+  - Refreshed repository baseline to HEAD `135a15c`.
+- Updated `findings.md`:
+  - Fixed `docs/development.md` presence.
+  - Added refactor status table and plan-correction section.
+- Updated `plans/` historical task lists with Kotlin test path notes.
+
+No Kotlin source or test code modified in this correction session.
+
+**Next recommended action:** Phase 8 — `EsttController` internal refactor.
+
+### Phases 5–11 implementation completed (2026-06-29)
+
+Executed remaining refactor phases with commits.
+
+Phase 8 — `EsttController`:
+- Extracted `FlightDateRequest`, `parseFlightRequest`, `validatePaginationParams`, `databaseErrorResponse`, `calculationErrorResponse`.
+
+Phase 9 — `FlyingTimeCalculator`:
+- Extracted `historyResult`, `seasonalFallbackResult`, `noEstimateResult`, `recordHistoryAccuracyMetrics`.
+
+Phase 10 — exception/calculator reconciliation:
+- `InvalidFlightDateExceptionHandler` returns `ErrorResponse` with `VALIDATION_ERROR`.
+- Removed unused `ensureValidSeasonalFlight`.
+- Added handler characterization tests.
+
+Phase 11 — final verification:
+- `./gradlew spotlessApply check` passed.
+
+Second refactoring pass is complete.

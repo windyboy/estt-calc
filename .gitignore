@@ -16,3 +16,4 @@ logs/
 .micronaut
 bin
 logs
+*.db

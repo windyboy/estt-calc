@@ -2,9 +2,11 @@
 
 ## Scope
 
-Second-pass planning artifact for deeper internal Kotlin refactoring and bilingual source documentation. This is an inspect-and-plan-only phase.
+Second-pass plan for deeper internal Kotlin refactoring and bilingual source documentation.
 
-No Kotlin source, tests, README, `docs/development.md`, Gradle files, configuration, SQL, or dependency files were modified during this phase. Only planning files are updated as required by the `planning-with-files` workflow.
+Phases 0–4 are complete. Phases 5–6 were partially delivered and incorrectly marked complete; Phase 7 closed prematurely. Phases 8–11 cover the remaining refactor work, uncommitted change reconciliation, and a final verification pass.
+
+Planning files are updated to reflect actual delivery status before resuming implementation.
 
 ## Non-negotiable constraints
 
@@ -51,69 +53,60 @@ Preferred style:
 // Explain the non-obvious business rule or edge case here.
 ```
 
-## Repository baseline observed on 2026-07-01
+## Repository baseline observed on 2026-06-29 (plan correction)
 
 - Source root: `src/main/kotlin`.
-- Test root: `src/test/kotlin`.
-- Documentation inspected read-only: `README.md`, `docs/development.md`.
-- Build files inspected read-only: `build.gradle`, `settings.gradle`.
-- Current Gradle files are Groovy DSL, not Kotlin DSL.
-- Current HEAD: `0094d4d Document refactor pass`.
-- Recent first-pass commits:
-  - `e267ef4 Improve developer documentation`
-  - `d611231 Add characterization tests`
-  - `4675ffb Simplify history flight filtering`
-  - `d6a84fa Extract ESTT input validation`
-  - `4b8079c Record final verification`
-  - `0094d4d Document refactor pass`
-- Current pre-existing uncommitted source/test changes observed before this renewed planning update:
+- Test root: `src/test/kotlin` (Kotest + MockK; legacy `plans/` Groovy/Spock paths are obsolete).
+- Documentation: `README.md`, `docs/development.md`.
+- Build files: Groovy DSL (`build.gradle`, `settings.gradle`).
+- Current HEAD: `135a15c Record final verification`.
+- Second-pass commits already landed:
+  - `d44a956 Plan second refactoring pass`
+  - `1b592f4 Add bilingual source comments`
+  - `4592a0d Add characterization tests`
+  - `5861a00 Refactor ESTT orchestration` — partial Phase 5 (`withCalculationTelemetry`, `buildCalculatedResponse`)
+  - `03c2bb5 Refactor history pagination` — partial Phase 6 (`HistoryPaginationScanner`)
+  - `135a15c Record final verification` — Phase 7 verification only; remaining refactors not done
+- Uncommitted source/test changes (Phase 10 scope):
   - `.gitignore`
-  - `src/main/kotlin/com/gzzn/airport/exception/InvalidFlightDateException.kt`
-  - `src/main/kotlin/com/gzzn/airport/exception/InvalidFlightDateExceptionHandler.kt`
-  - `src/main/kotlin/com/gzzn/airport/service/calculator/FlyingTimeCalculator.kt`
-  - `src/test/kotlin/com/gzzn/airport/exception/GlobalExceptionHandlerTest.kt`
-  - `.codex/`
-- Planning files expected to change in this planning-only phase:
-  - `task_plan.md`
-  - `findings.md`
-  - `progress.md`
+  - `InvalidFlightDateException.kt`
+  - `InvalidFlightDateExceptionHandler.kt`
+  - `FlyingTimeCalculator.kt` (removes `ensureValidSeasonalFlight`)
+  - `GlobalExceptionHandlerTest.kt`
 
 ## Summary findings
 
-- The first refactor was too shallow because production-code simplification was limited mainly to:
-  - `HistoryFlightProvider` history-window/predicate cleanup.
-  - `EsttService` extraction of validation into `EsttInputValidator`.
-- Large orchestration/decision classes remain mostly intact:
-  - `EsttService.kt`: 426 lines.
-  - `EsttController.kt`: 239 lines.
-  - `HistoryFlightProvider.kt`: 198 lines.
-  - `FlyingTimeCalculator.kt`: 154 lines.
-- Current `src/main/kotlin` and `src/test/kotlin` contain no Chinese source comments/KDoc. The current source contains English-only comments for major business logic; these should become concise bilingual comments where business rules are important.
-- README contains precise Chinese/English domain documentation that should be mirrored into source-level KDoc/inline comments only at major logic boundaries.
-- Current uncommitted diff removes `FlyingTimeCalculator.ensureValidSeasonalFlight(...)` and its KDoc. Treat it as pre-existing user work and do not overwrite it unless explicitly instructed.
+- Phases 0–4 delivered as planned: audit, bilingual comments, characterization tests.
+- Phases 5–6 were only partially delivered:
+  - Done: `EsttService` telemetry/response helpers; `HistoryPaginationScanner` extraction.
+  - Not done: `EsttController` request-flow/error helpers; `FlyingTimeCalculator` branch/metrics extraction; further `EsttService` cache/metrics helpers.
+- Phase 7 verification passed on the partial delivery but should be rerun after Phases 8–10.
+- Current production file sizes:
+  - `EsttService.kt`: 436 lines (partially refactored).
+  - `EsttController.kt`: 239 lines (unchanged — Phase 8 target).
+  - `HistoryFlightProvider.kt`: 168 lines (refactored).
+  - `FlyingTimeCalculator.kt`: ~142 lines after uncommitted edit (Phase 9 target).
+- Bilingual source comments are in place for major business logic (Phase 3 complete).
+- Uncommitted exception-handler changes alter HTTP 400 response shape (`ErrorResponse`); reconcile in Phase 10 before final verification.
 
 ## Meaningful internal Kotlin refactoring opportunities
 
 Highest-priority production files:
 
-- `src/main/kotlin/com/gzzn/airport/service/EsttService.kt`
-  - Still mixes cache-wrapped repository access, seasonal validation, result-chain branching, MDC setup/cleanup, metrics, response construction, and no-estimate mapping.
-  - Candidate private extractions: calculation execution context wrapper for MDC/timer, metric source-tag mapper, seasonal-flight validation helper, calculator-result-to-response mapper, no-estimate response helper, non-null history retrieval helper.
-- `src/main/kotlin/com/gzzn/airport/resource/EsttController.kt`
+- `src/main/kotlin/com/gzzn/airport/service/EsttService.kt` — **partial (Phase 5)**
+  - Done: `withCalculationTelemetry`, `buildCalculatedResponse`.
+  - Remaining (optional, lower priority): metric source-tag mapper, seasonal-flight validation helper, no-estimate response helper, non-null history retrieval helper.
+- `src/main/kotlin/com/gzzn/airport/resource/EsttController.kt` — **pending (Phase 8)**
   - Repeats normalize/validate/parse/log/fold/error-response patterns across endpoints.
-  - Candidate private helpers: flight request normalization, common database-error response builder, common calculation-error response builder, pagination validation helper. Must not alter method signatures, route annotations, response statuses, or messages.
-- `src/main/kotlin/com/gzzn/airport/service/history/HistoryFlightProvider.kt`
-  - `getPaginatedHistory` still combines scan loop state, filtering, `hasMore` calculation, cap reporting, and metrics.
-  - Candidate private/internal helper: pagination scan accumulator/state object or private scan function. Preserve ordering, raw fetch loop, capped total, `offset`, `limit`, `hasMore`, and metric tags exactly.
-- `src/main/kotlin/com/gzzn/airport/service/calculator/FlyingTimeCalculator.kt`
+  - Candidate private helpers: flight request normalization, common database-error response builder, common calculation-error response builder, pagination validation helper.
+- `src/main/kotlin/com/gzzn/airport/service/history/HistoryFlightProvider.kt` — **done (Phase 6)**
+  - Pagination scan extracted to `HistoryPaginationScanner`.
+- `src/main/kotlin/com/gzzn/airport/service/calculator/FlyingTimeCalculator.kt` — **pending (Phase 9)**
   - `calculate` still combines qualification, median decision, seasonal fallback, no-estimate result construction, and metrics.
   - Candidate private helpers: `historyResult`, `seasonalFallbackResult`, `noEstimateResult`, `recordHistoryMetrics`, `recordSeasonalFallbackMetrics`, median duration extraction.
-- `src/main/kotlin/com/gzzn/airport/model/OperationDays.kt`
-  - Small but domain-critical; add bilingual KDoc and consider private naming clarity only if tests protect invalid-character/duplicate behavior.
-- `src/main/kotlin/com/gzzn/airport/config/EsttCalculationConfig.kt`
-  - Add bilingual KDoc explaining configuration semantics and fail-fast validation. Do not change keys/defaults/messages.
-- `src/main/kotlin/com/gzzn/airport/repository/HistoryFlightRepository.kt` and `SeasonRepository.kt`
-  - Add bilingual comments for Oracle SQL assumptions: inclusive date bounds, target-day exclusion by caller, arrival-only flag, `INSTR` as DB prefilter, and service-layer revalidation. Do not change SQL.
+- `src/main/kotlin/com/gzzn/airport/model/OperationDays.kt` — **done (Phase 3)**
+- `src/main/kotlin/com/gzzn/airport/config/EsttCalculationConfig.kt` — **done (Phase 3)**
+- `src/main/kotlin/com/gzzn/airport/repository/HistoryFlightRepository.kt` and `SeasonRepository.kt` — **done (Phase 3)**
 
 Test files likely involved for characterization before risky refactors:
 
@@ -168,13 +161,17 @@ Focused commands for planned refactor zones:
 | Phase | Status | Risk | Main outcome |
 |---|---|---|---|
 | Phase 0: Second-pass baseline and previous diff review | complete | Low | Established first-pass shallowness, current HEAD, and pre-existing working-tree changes. |
-| Phase 1: Bilingual inline documentation audit | complete | Low | Found English-only source comments and no Chinese source comments; identified domain logic needing bilingual comments. |
+| Phase 1: Bilingual inline documentation audit | complete | Low | Found English-only source comments; identified domain logic needing bilingual comments. |
 | Phase 2: Complexity and duplication audit | complete | Low | Identified concrete private/internal refactor opportunities. |
 | Phase 3: Restore/improve bilingual KDoc and inline docs | complete | Low | Added concise Chinese-first, English-second comments for major business logic. |
 | Phase 4: Characterization tests for risky behavior | complete | Medium | Added characterization tests and verified behavior before deeper refactors. |
-| Phase 5: Deeper internal Kotlin refactor | complete | Medium | Extracted private helpers and reduced duplication without API/behavior changes. |
-| Phase 6: Split oversized private/internal components | complete | Medium | Split paginated history scanning into a dedicated internal helper. |
-| Phase 7: Final behavior verification and documentation sync | complete | Low-Medium | Verified behavior and confirmed no documentation sync was needed. |
+| Phase 5: Deeper internal Kotlin refactor | complete | Medium | `EsttService` telemetry/response helpers; Phase 8–9 completed remaining controller/calculator refactors. |
+| Phase 6: Split oversized private/internal components | complete | Medium | `HistoryPaginationScanner` extracted. |
+| Phase 7: Final behavior verification and documentation sync | superseded | Low-Medium | Premature closure; superseded by Phase 11. |
+| Phase 8: EsttController internal refactor | complete | Medium | Extracted request parsing, pagination validation, and error-response helpers. |
+| Phase 9: FlyingTimeCalculator internal refactor | complete | Medium | Extracted history/seasonal/no-estimate branch builders and accuracy metrics helper. |
+| Phase 10: Reconcile uncommitted exception/calculator work | complete | Medium | Standardized invalid-date handler to `ErrorResponse`; removed unused `ensureValidSeasonalFlight`. |
+| Phase 11: Final verification and documentation sync (redo) | complete | Low-Medium | `./gradlew check` passed; no README/docs sync required. |
 
 ### Phase 0: Second-pass baseline and previous diff review
 
@@ -441,7 +438,13 @@ git diff --check
 
 **Status:** complete
 
-**Goal**
+**Delivered**
+
+- `EsttService.withCalculationTelemetry` — MDC/timer lifecycle wrapper.
+- `EsttService.buildCalculatedResponse` — calculator-result-to-response mapping.
+- Remaining controller/calculator refactors completed in Phases 8–9.
+
+**Original goal**
 
 - Perform meaningful internal simplification without public API or behavior changes.
 - Reduce private duplication, oversized private methods, and nested branching in the main hotspots.
@@ -502,7 +505,11 @@ git diff --check
 
 **Status:** complete
 
-**Goal**
+**Delivered**
+
+- `HistoryPaginationScanner` extracted from `HistoryFlightProvider`.
+
+**Original goal**
 
 - Split oversized private/internal components only where Phase 5 leaves clearly separable responsibilities.
 - Improve boundaries without changing public imports, bean behavior, or external API.
@@ -557,12 +564,17 @@ Focused reruns based on touched files:
 
 ### Phase 7: Final behavior verification and documentation sync
 
-**Status:** complete
+**Status:** superseded
 
-**Goal**
+**Note**
+
+- `./gradlew check` passed at commit `135a15c`, but Phases 5–6 were incomplete.
+- Do not treat Phase 7 as the final gate; rerun verification in Phase 11 after Phases 8–10.
+
+**Original goal**
 
 - Verify external behavior is unchanged after all approved implementation phases.
-- Sync README/developer documentation only if internal structure documented there changed, and only after source refactor work is complete.
+- Sync README/developer documentation only if internal structure documented there changed.
 
 **Files likely involved**
 
@@ -617,12 +629,113 @@ Optional if packaging/runtime behavior must be checked:
 - For source refactors, revert the smallest cohesive commit/hunk that caused verification failure.
 - Preserve pre-existing user changes unless explicitly instructed otherwise.
 
+### Phase 8: EsttController internal refactor
+
+**Status:** complete
+
+**Goal**
+
+- Extract private request-flow and error-response helpers from `EsttController.kt` without changing routes, method signatures, HTTP statuses, or messages.
+
+**Files likely involved**
+
+- `src/main/kotlin/com/gzzn/airport/resource/EsttController.kt`
+- `src/test/kotlin/com/gzzn/airport/resource/EsttControllerTest.kt`
+
+**Candidate extractions**
+
+- Flight-number normalization and validation flow.
+- Pagination parameter validation.
+- Shared `DATABASE_ERROR` and `CALCULATION_ERROR` response builders.
+- Common parse-date / fold-Result endpoint pattern.
+
+**Verification commands**
+
+```bash
+./gradlew test --tests com.gzzn.airport.resource.EsttControllerTest
+./gradlew check
+```
+
+### Phase 9: FlyingTimeCalculator internal refactor
+
+**Status:** complete
+
+**Goal**
+
+- Split `FlyingTimeCalculator.calculate` into private branch builders and metric helpers without changing decision logic, metric tags, or log messages.
+
+**Files likely involved**
+
+- `src/main/kotlin/com/gzzn/airport/service/calculator/FlyingTimeCalculator.kt`
+- `src/test/kotlin/com/gzzn/airport/service/calculator/FlyingTimeCalculatorTest.kt`
+
+**Candidate extractions**
+
+- `historyResult`, `seasonalFallbackResult`, `noEstimateResult`.
+- `recordHistoryMetrics`, `recordSeasonalFallbackMetrics`.
+- Median duration extraction helper.
+
+**Verification commands**
+
+```bash
+./gradlew test --tests com.gzzn.airport.service.calculator.FlyingTimeCalculatorTest
+./gradlew check
+```
+
+### Phase 10: Reconcile uncommitted exception/calculator work
+
+**Status:** complete
+
+**Goal**
+
+- Resolve uncommitted working-tree changes that were outside the original phase plan but affect observable behavior.
+
+**Files involved**
+
+- `InvalidFlightDateException.kt`
+- `InvalidFlightDateExceptionHandler.kt` — response shape changed from `Map` to `ErrorResponse`
+- `FlyingTimeCalculator.kt` — `ensureValidSeasonalFlight` removed
+- `GlobalExceptionHandlerTest.kt`
+- `.gitignore`
+
+**Allowed changes**
+
+- Commit intentional changes with tests that lock the chosen contract.
+- Revert changes that violate the no-behavior-change constraint.
+- Update README/OpenAPI only if the committed response contract changes.
+
+**Verification commands**
+
+```bash
+./gradlew test --tests com.gzzn.airport.exception.GlobalExceptionHandlerTest
+./gradlew test --tests com.gzzn.airport.resource.EsttControllerTest
+./gradlew check
+```
+
+### Phase 11: Final verification and documentation sync (redo)
+
+**Status:** complete
+
+**Goal**
+
+- Run full verification after Phases 8–10 complete.
+- Sync `README.md` and `docs/development.md` if internal structure or error-response contract changed.
+
+**Verification commands**
+
+```bash
+git diff --check
+./gradlew test
+./gradlew check
+git status --short
+```
+
 ## Errors encountered during planning
 
 | Error | Attempt | Resolution |
 |---|---|---|
 | `~/.codex/skills/planning-with-files/scripts/session-catchup.py` not found | Earlier planning attempt used the home-path command from the skill docs | Used the repository-local skill script `.codex/skills/planning-with-files/scripts/session-catchup.py`, which completed successfully. |
 
-## Stop point
+## Current stop point
 
-Planning-only first phase is complete. Do not proceed to source, test, README, docs, or Gradle modifications until explicitly instructed.
+Phases 0–11 complete. Second refactoring pass finished 2026-06-29.

@@ -7,8 +7,8 @@
 - Kotlin tests: `src/test/kotlin/com/gzzn/airport`.
 - Resources: `src/main/resources/application.yml`, `src/main/resources/logback.xml`, `src/test/resources/application-test.yml`, `src/test/resources/schema.sql`.
 - README exists and is substantial.
-- `docs/` directory is absent.
-- Existing prior plans are under `plans/`:
+- `docs/development.md` exists (developer workflow guide created in first refactor pass).
+- Existing prior plans are under `plans/` (historical; test paths reference obsolete Groovy/Spock layout):
   - `plans/2026-06-29-estt-logic-improvement-task-list-v2.md`
   - `plans/2026-06-29-estt-test-improvement-task-list-v1.md`
 
@@ -77,7 +77,17 @@ Largest test files:
 
 ## Simplification opportunities to investigate later
 
-Do not implement until characterization tests and explicit approval to proceed beyond planning.
+Characterization tests from Phases 3–4 are in place. Refactor status as of plan correction (2026-06-29):
+
+| Area | Status | Next phase |
+|------|--------|------------|
+| `EsttService` telemetry/response helpers | done | optional further extractions |
+| `HistoryPaginationScanner` | done | — |
+| `EsttController` request-flow/error helpers | pending | Phase 8 |
+| `FlyingTimeCalculator` branch/metrics helpers | pending | Phase 9 |
+| Uncommitted exception-handler changes | pending | Phase 10 |
+
+Remaining notes:
 
 - `EsttService` mixes orchestration, cache-wrapped repository access, input validation, MDC, metrics recording, and response construction.
 - `EsttController` repeats endpoint flow: normalize flight number, validate, parse date, log, fold `Result` into HTTP response.
@@ -91,7 +101,7 @@ Do not implement until characterization tests and explicit approval to proceed b
 ## Documentation inventory findings
 
 - README already includes extensive bilingual product overview, algorithm, API endpoints, environment variables, build/run/test commands, architecture, testing, logging, and version history.
-- README describes `docs/`-like content inline; there is no separate developer documentation directory.
+- `docs/development.md` supplements README with prerequisites, build/test commands, project structure, configuration workflow, troubleshooting, and known limitations.
 - Potential README/documentation issues to address later:
   - It should explicitly state this repo uses `build.gradle`/`settings.gradle` Groovy DSL, not `.kts`, unless migration is separately approved.
   - Build/test/run instructions exist but could be reorganized into a concise developer workflow section.
@@ -333,3 +343,33 @@ These should be preserved and not overwritten without user approval.
   - `./gradlew check` passed.
 - No README or `docs/development.md` update was needed because the internal helper split did not change documented external structure or behavior.
 - The working tree still contains pre-existing user changes unrelated to the phase7 implementation: `InvalidFlightDateException.kt`, `InvalidFlightDateExceptionHandler.kt`, `FlyingTimeCalculator.kt`, `GlobalExceptionHandlerTest.kt`, `.gitignore`, `.codex/`, and `.cursor/`.
+
+# Findings: Plan correction (2026-06-29)
+
+## Issues corrected in planning files
+
+- `task_plan.md` incorrectly marked Phases 5–7 complete despite partial delivery.
+- Stale "plan-only / do not proceed" stop point contradicted landed commits.
+- `findings.md` incorrectly stated `docs/` was absent.
+- `plans/` task lists reference obsolete `src/test/groovy/` Spock paths; tests now live under `src/test/kotlin/`.
+
+## Corrected delivery status
+
+| Phase | Correct status | Notes |
+|-------|----------------|-------|
+| 0–4 | complete | Audit, bilingual docs, characterization tests |
+| 5 | partial | `EsttService` helpers only |
+| 6 | partial | `HistoryPaginationScanner` only |
+| 7 | superseded | Verification passed but premature |
+| 8 | complete | `EsttController` refactor |
+| 9 | complete | `FlyingTimeCalculator` refactor |
+| 10 | complete | Exception handler + calculator cleanup committed |
+| 11 | complete | Final `./gradlew check` passed |
+
+## Current production hotspots (post-correction)
+
+- `EsttService.kt`: 436 lines — partially refactored.
+- `EsttController.kt`: 239 lines — unchanged; Phase 8 target.
+- `HistoryFlightProvider.kt`: 168 lines — refactored.
+- `FlyingTimeCalculator.kt`: ~142 lines — Phase 9 target.
+- Uncommitted `InvalidFlightDateExceptionHandler` changes HTTP 400 body from `Map` to `ErrorResponse`; reconcile in Phase 10 before treating verification as final.

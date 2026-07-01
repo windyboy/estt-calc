@@ -5,7 +5,9 @@
 **Derived from:**
 - `plans/2026-06-29-estt-logic-code-review-v1.md`
 - `plans/2026-06-29-estt-logic-improvement-plan-v2.md`  
-**Status:** Local implementation complete; README/CHANGELOG synced 2026-06-29; external release verification pending
+**Status:** Historical — local implementation complete; superseded by root `task_plan.md` second-pass Phases 8–11 for remaining refactors
+
+> **Note (2026-06-29):** This document is a historical backlog. Test paths below reference `src/test/groovy/` (Spock); the codebase now uses `src/test/kotlin/` (Kotest + MockK). Map Groovy spec names to Kotlin equivalents, e.g. `EsttServiceSpec.groovy` → `EsttServiceTest.kt`, `EsttControllerSpec.groovy` → `EsttControllerTest.kt`.
 
 **Blocked on before release tag:** external confirmation of Q4 (JDK 25 images available in CI/Docker/runtime) and Drone green on `develop`.
 
@@ -241,9 +243,13 @@ Checkbox backlog for post-review improvements. P0 items block the next productio
 
 ## 8. Test Hygiene Notes
 
-- From Groovy, use `OperationDays.INSTANCE.matches(...)` unless `@JvmStatic` is added
+- **Historical:** this backlog was written for Spock/Groovy tests under `src/test/groovy/`.
+- **Current:** tests live under `src/test/kotlin/` using Kotest + MockK.
 - Do not assert `message` in consumer contract tests — use `source`, `confidence`, `sampleSize`
-- Test path is `src/test/groovy/...` (not `src/test/kotlin/...`)
+- Example Kotlin test paths:
+  - `src/test/kotlin/com/gzzn/airport/service/EsttServiceTest.kt`
+  - `src/test/kotlin/com/gzzn/airport/resource/EsttControllerTest.kt`
+  - `src/test/kotlin/com/gzzn/airport/model/OperationDaysTest.kt`
 
 ---
 

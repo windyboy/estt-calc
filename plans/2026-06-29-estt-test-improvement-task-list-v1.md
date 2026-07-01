@@ -3,7 +3,9 @@
 **Date:** 2026-06-29  
 **Project:** `estt-calc-kotlin`  
 **Purpose:** Turn the unit-test review gaps into an actionable checklist.  
-**Status:** Complete
+**Status:** Historical — complete; superseded by root `task_plan.md` for ongoing refactor work
+
+> **Note (2026-06-29):** Test paths below reference `src/test/groovy/` (Spock). Current tests are under `src/test/kotlin/` (Kotest + MockK). See root `task_plan.md` Phases 8–11 for remaining work.
 **Source:** `plans/2026-06-29-estt-logic-code-review-v1.md` §6.2 / §6.3 and follow-up test coverage review
 
 ---
@@ -155,12 +157,10 @@ Current `/flyTime` HTTP happy path uses date-spanning rows to work around H2/Mic
 
 ## 6. References
 
-- `src/test/groovy/com/gzzn/airport/EsttServiceSpec.groovy`
-- `src/test/groovy/com/gzzn/airport/EsttControllerSpec.groovy`
-- `src/test/groovy/com/gzzn/airport/EsttConfigSpec.groovy`
-- `src/test/groovy/com/gzzn/airport/EsttLegacyConfigSpec.groovy`
-- `src/test/groovy/com/gzzn/airport/OperationDaysSpec.groovy`
+- `src/test/kotlin/com/gzzn/airport/service/EsttServiceTest.kt` (was `EsttServiceSpec.groovy`)
+- `src/test/kotlin/com/gzzn/airport/resource/EsttControllerTest.kt` (was `EsttControllerSpec.groovy`)
+- `src/test/kotlin/com/gzzn/airport/model/OperationDaysTest.kt` (was `OperationDaysSpec.groovy`)
 - `src/main/kotlin/com/gzzn/airport/service/EsttService.kt`
 - `src/main/kotlin/com/gzzn/airport/exception/InvalidFlightDateExceptionHandler.kt`
-- `plans/2026-06-29-estt-logic-code-review-v1.md` §6.2 / §6.3
 - `plans/2026-06-29-estt-logic-improvement-task-list-v2.md`
+- Root `task_plan.md` Phases 8–11 for remaining refactor work
