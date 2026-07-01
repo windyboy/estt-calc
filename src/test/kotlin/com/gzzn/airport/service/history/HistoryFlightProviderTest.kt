@@ -104,6 +104,49 @@ class HistoryFlightProviderTest :
                     )
                 }
             }
+
+            it("rejects flying time deviation exactly at configured threshold") {
+                val baseDate = LocalDate.of(2024, 6, 5)
+                val seasonalFlyingTime = seasonalFlight.flyingTime ?: error("test seasonal flight should have flying time")
+                val insideExclusiveThreshold = historyFlight(
+                    date = baseDate,
+                    scheduledOffsetMinutes = 0,
+                    actualDurationMinutes = seasonalFlyingTime + config.maxFlyingTimeDeviation - 1,
+                )
+                val exactThreshold = historyFlight(
+                    date = baseDate.minusDays(2),
+                    scheduledOffsetMinutes = 0,
+                    actualDurationMinutes = seasonalFlyingTime + config.maxFlyingTimeDeviation,
+                )
+
+                every {
+                    repository.getArrivalFlight(seasonalFlight.flightNumber, any(), any(), config.maxHistoryRows, any())
+                } returns listOf(insideExclusiveThreshold, exactThreshold)
+
+                val result = provider.getHistoryFlights(seasonalFlight, baseDate)
+
+                result shouldHaveSize 1
+                result.first() shouldBe insideExclusiveThreshold
+            }
+
+            it("skips flying time tolerance filtering when seasonal flying time is not configured") {
+                val baseDate = LocalDate.of(2024, 6, 5)
+                val seasonalWithoutFlyingTime = seasonalFlight.copy(flyingTime = null)
+                val longDurationFlight = historyFlight(
+                    date = baseDate,
+                    scheduledOffsetMinutes = 0,
+                    actualDurationMinutes = 500,
+                )
+
+                every {
+                    repository.getArrivalFlight(seasonalWithoutFlyingTime.flightNumber, any(), any(), config.maxHistoryRows, any())
+                } returns listOf(longDurationFlight)
+
+                val result = provider.getHistoryFlights(seasonalWithoutFlyingTime, baseDate)
+
+                result shouldHaveSize 1
+                result.first() shouldBe longDurationFlight
+            }
         }
 
         describe("getPaginatedHistory") {

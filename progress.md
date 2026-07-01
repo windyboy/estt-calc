@@ -129,3 +129,39 @@ Updated `task_plan.md` for planning-with-files Stop hook compatibility:
 - Preserved the existing phase meanings: Phases 0-2 complete; Phases 3-6 pending.
 
 Only `task_plan.md` and `progress.md` were modified for this normalization.
+
+### Phase 3 characterization tests completed
+
+Executed only Phase 3 as requested. Added tests that lock current behavior before production refactoring.
+
+Changed files in this phase:
+
+- `src/test/kotlin/com/gzzn/airport/service/calculator/FlyingTimeCalculatorTest.kt`
+- `src/test/kotlin/com/gzzn/airport/service/history/HistoryFlightProviderTest.kt`
+- `task_plan.md`
+- `progress.md`
+
+Behaviors covered by new characterization tests:
+
+- Late arrivals exactly at `maxScheduleDeviation` remain eligible for history-based calculation.
+- Late arrivals one minute beyond `maxScheduleDeviation` are rejected before the minimum history count is evaluated.
+- Even-sized historical samples use the existing truncated integer average for median calculation.
+- Flying-time deviation filtering is exclusive at `maxFlyingTimeDeviation`; an exact-threshold deviation is rejected.
+- Flying-time deviation filtering is skipped when seasonal `flyingTime` is not configured.
+
+Verification commands run:
+
+```bash
+./gradlew test --tests com.gzzn.airport.service.calculator.FlyingTimeCalculatorTest --tests com.gzzn.airport.service.history.HistoryFlightProviderTest
+./gradlew test
+```
+
+Results:
+
+- Initial non-escalated Gradle test attempts failed because the sandbox could not write the Gradle wrapper lock file under `~/.gradle`; reran with escalation as required.
+- First escalated focused test run found a test compile error from passing `Int` values to `LocalDateTime.plusMinutes(Long)`; fixed by converting config values to `Long`.
+- A follow-up edit removed an unnecessary non-null assertion, then used a local non-null test value for nullable `flyingTime`.
+- Focused characterization tests passed.
+- Full `./gradlew test` passed.
+
+Updated `task_plan.md` to mark Phase 3 complete. Phases 4-6 remain pending.

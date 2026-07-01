@@ -55,7 +55,7 @@ Useful focused commands:
 | Phase 0: Baseline verification | complete | Clean baseline completed successfully with `./gradlew clean test` and `./gradlew build`. |
 | Phase 1: Documentation inventory | complete | Documentation inventory completed: README inspected, original `docs/` absence recorded, and documentation gaps captured in `findings.md`. |
 | Phase 2: Low-risk documentation improvements | complete | README quick start added and `docs/development.md` created with workflow, structure, configuration, troubleshooting, and limitations. |
-| Phase 3: Characterization tests | pending | Add tests before production refactors. |
+| Phase 3: Characterization tests | complete | Added characterization tests for schedule-deviation boundaries, integer median behavior, and flying-time tolerance filtering. |
 | Phase 4: Low-risk Kotlin simplification | pending | Private/helper-level simplification only. |
 | Phase 5: Split oversized classes/functions | pending | Preserve public API and behavior. |
 | Phase 6: Final verification | pending | Full checks and diff review. |
@@ -199,7 +199,17 @@ No source code, test code, or Gradle files were modified for this phase.
 
 ### Phase 3: Characterization tests
 
-**Status:** pending
+**Status:** complete
+
+Completed on 2026-07-01. Added characterization tests covering:
+
+- Schedule-deviation boundary: exactly `maxScheduleDeviation` late remains eligible.
+- Schedule-deviation boundary: one minute beyond `maxScheduleDeviation` is rejected before history count.
+- Even-sized history median uses truncated integer average.
+- Flying-time deviation tolerance is exclusive at `maxFlyingTimeDeviation`.
+- Flying-time tolerance filtering is skipped when seasonal flying time is not configured.
+
+Verification completed successfully with focused tests and the full test suite.
 
 1. **Goal**
    - Lock down existing behavior before refactoring, especially API payloads, error behavior, date parsing, filtering boundaries, pagination, and metrics side effects where practical.
