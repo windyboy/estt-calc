@@ -324,3 +324,12 @@ These should be preserved and not overwritten without user approval.
   - Focused tests for `HistoryFlightProviderTest`, `EsttServiceTest`, `EsttServiceValidationAndMatchingTest`, and `EsttServiceErrorTest` passed.
   - Full `./gradlew check` passed after applying Spotless formatting to the new scanner file.
 - Pre-existing working-tree changes remain untouched: `InvalidFlightDateException.kt`, `InvalidFlightDateExceptionHandler.kt`, `FlyingTimeCalculator.kt`, `GlobalExceptionHandlerTest.kt`, `.gitignore`, `.codex/`, and `.cursor/`.
+
+
+## Phase 7 execution findings: final verification and documentation sync
+
+- Final verification passed after the Phase 5/6 refactors:
+  - `git diff --check` passed.
+  - `./gradlew check` passed.
+- No README or `docs/development.md` update was needed because the internal helper split did not change documented external structure or behavior.
+- The working tree still contains pre-existing user changes unrelated to the phase7 implementation: `InvalidFlightDateException.kt`, `InvalidFlightDateExceptionHandler.kt`, `FlyingTimeCalculator.kt`, `GlobalExceptionHandlerTest.kt`, `.gitignore`, `.codex/`, and `.cursor/`.
