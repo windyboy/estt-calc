@@ -79,3 +79,53 @@ Updated `task_plan.md` to mark Phase 0 complete and keep Phases 1-6 pending.
 ### Next recommended action
 
 Proceed to Phase 1: Documentation inventory. Keep changes limited to planning notes until the user approves documentation edits.
+
+### Phase 2 low-risk documentation improvements completed
+
+Executed only Phase 2 as requested. Documentation-only changes made:
+
+- Updated `README.md` with a Quick Start section.
+- Updated the README Development section to point to detailed developer documentation and list common verification commands.
+- Created `docs/development.md` with:
+  - prerequisites,
+  - common build/test/run commands,
+  - focused test commands,
+  - project structure,
+  - configuration workflow,
+  - Micronaut/Kotlin development workflow,
+  - troubleshooting,
+  - known limitations.
+
+Files changed in this phase:
+
+- `README.md`
+- `docs/development.md`
+- `task_plan.md`
+- `progress.md`
+
+Assumptions recorded:
+
+- Documentation should reflect the current Groovy Gradle build files (`build.gradle`, `settings.gradle`), not Kotlin DSL files.
+- `docs/` was useful because the README was already long and a separate developer guide keeps workflow/troubleshooting details easier to maintain.
+- No verification command was run after documentation-only edits because the user requested documentation changes only and the baseline had already passed.
+
+Updated `task_plan.md` to mark Phase 2 complete. Phase 1 and Phases 3-6 remain pending.
+
+### Phase 1 documentation inventory marked complete
+
+Updated planning status for Phase 0 and Phase 1:
+
+- Phase 0 was already complete from the successful baseline verification.
+- Phase 1 is now marked complete based on the completed repository/documentation inventory already captured in `findings.md`.
+
+No source code, test code, README/docs content, or Gradle files were modified for this status update.
+
+### Planning heading normalization for Stop hook
+
+Updated `task_plan.md` for planning-with-files Stop hook compatibility:
+
+- Converted detailed phase headings from `## Phase ...` to `### Phase ...` so the Stop hook can count all seven phases.
+- Normalized phase status markers to the hook-compatible `**Status:** complete` / `**Status:** pending` form.
+- Preserved the existing phase meanings: Phases 0-2 complete; Phases 3-6 pending.
+
+Only `task_plan.md` and `progress.md` were modified for this normalization.

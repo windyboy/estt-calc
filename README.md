@@ -4,6 +4,27 @@
 
 A Micronaut-based Kotlin microservice that calculates estimated flying times for arriving flights based on seasonal flight schedules and historical flight data.
 
+## Quick Start
+
+```bash
+# Verify the baseline
+./gradlew clean test
+./gradlew build
+
+# Run locally with configuration from application.yml/environment
+./gradlew run
+```
+
+Useful local endpoints after startup:
+
+- `GET /estt/season`
+- `GET /estt/flyTime/{flightNumber}/{flightDate}`
+- `GET /health`
+- `GET /prometheus`
+- Swagger UI: `http://localhost:8080/swagger-ui`
+
+For day-to-day development workflow, project structure, troubleshooting, and known limitations, see [docs/development.md](docs/development.md).
+
 ## 问题 (Problem)
 
 旧的电报系统，查询航班历史的时候使用单一航班号为限制条件，因为同一个航班号的航班不同运营日执行的是不同飞行计划，导致航班历史查询不准确，影响预计时间的计算。
@@ -644,10 +665,12 @@ src/test/kotlin/com/gzzn/airport/
 
 ## 开发 (Development)
 
+See [docs/development.md](docs/development.md) for the current developer workflow, project structure, configuration notes, troubleshooting, and known limitations.
+
 ### Prerequisites
 
 - JDK 25
-- Oracle Database (or H2 for tests)
+- Oracle Database for real runtime data; tests use H2 via `src/test/resources/application-test.yml`
 - IDE with Kotlin support (IntelliJ IDEA recommended)
 
 ### Running in Development Mode
@@ -656,9 +679,14 @@ src/test/kotlin/com/gzzn/airport/
 ./gradlew run
 ```
 
-### Hot Reload
+### Common Verification Commands
 
-Micronaut supports automatic restart on file changes in development mode.
+```bash
+./gradlew clean test
+./gradlew build
+./gradlew spotlessCheck
+./gradlew koverHtmlReport
+```
 
 ## 部署 (Deployment)
 

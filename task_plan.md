@@ -53,16 +53,16 @@ Useful focused commands:
 | Phase | Status | Notes |
 |---|---|---|
 | Phase 0: Baseline verification | complete | Clean baseline completed successfully with `./gradlew clean test` and `./gradlew build`. |
-| Phase 1: Documentation inventory | pending | README inspected; no `docs/` directory found. |
-| Phase 2: Low-risk documentation improvements | pending | README/docs-only changes after approval to proceed beyond planning. |
+| Phase 1: Documentation inventory | complete | Documentation inventory completed: README inspected, original `docs/` absence recorded, and documentation gaps captured in `findings.md`. |
+| Phase 2: Low-risk documentation improvements | complete | README quick start added and `docs/development.md` created with workflow, structure, configuration, troubleshooting, and limitations. |
 | Phase 3: Characterization tests | pending | Add tests before production refactors. |
 | Phase 4: Low-risk Kotlin simplification | pending | Private/helper-level simplification only. |
 | Phase 5: Split oversized classes/functions | pending | Preserve public API and behavior. |
 | Phase 6: Final verification | pending | Full checks and diff review. |
 
-## Phase 0: Baseline verification
+### Phase 0: Baseline verification
 
-**Status: Complete**
+**Status:** complete
 
 Baseline commands completed successfully on 2026-07-01:
 
@@ -107,7 +107,18 @@ Result: both commands exited with code 0. This is the clean baseline before docu
    - Remove generated build artifacts if needed with an approved cleanup command.
    - Revert only planning-file edits if the plan needs to be discarded.
 
-## Phase 1: Documentation inventory
+### Phase 1: Documentation inventory
+
+**Status:** complete
+
+Documentation inventory completed on 2026-07-01. Findings were recorded in `findings.md`, including:
+
+- README already contained extensive user/API/build/test information.
+- `docs/` was absent at inventory time.
+- Developer workflow, troubleshooting, project structure, and known limitations needed clearer standalone documentation.
+- Version-history inconsistencies should be treated carefully and not changed without approval.
+
+No source code, test code, README, docs, or Gradle files were modified during the inventory itself.
 
 1. **Goal**
    - Identify missing, stale, redundant, or unclear developer and user documentation.
@@ -139,7 +150,17 @@ Result: both commands exited with code 0. This is the clean baseline before docu
 7. **Rollback notes**
    - Revert planning files if inventory notes are incorrect.
 
-## Phase 2: Low-risk documentation improvements
+### Phase 2: Low-risk documentation improvements
+
+**Status:** complete
+
+Completed documentation-only updates on 2026-07-01:
+
+- Added a README Quick Start section with baseline verification and local run commands.
+- Added README links to developer workflow documentation.
+- Created `docs/development.md` covering common commands, project structure, configuration workflow, Micronaut/Kotlin development workflow, troubleshooting, and known limitations.
+
+No source code, test code, or Gradle files were modified for this phase.
 
 1. **Goal**
    - Improve README and/or add developer docs without touching production code.
@@ -176,7 +197,9 @@ Result: both commands exited with code 0. This is the clean baseline before docu
    - Revert README/docs changes only.
    - Do not revert generated files unless they were produced by verification and are unwanted.
 
-## Phase 3: Characterization tests
+### Phase 3: Characterization tests
+
+**Status:** pending
 
 1. **Goal**
    - Lock down existing behavior before refactoring, especially API payloads, error behavior, date parsing, filtering boundaries, pagination, and metrics side effects where practical.
@@ -215,7 +238,9 @@ Result: both commands exited with code 0. This is the clean baseline before docu
    - Revert only added/modified tests from this phase.
    - Keep planning notes about uncovered behavior even if test approach is rolled back.
 
-## Phase 4: Low-risk Kotlin simplification
+### Phase 4: Low-risk Kotlin simplification
+
+**Status:** pending
 
 1. **Goal**
    - Simplify implementation while preserving behavior and public API.
@@ -257,7 +282,9 @@ Result: both commands exited with code 0. This is the clean baseline before docu
    - Revert only the smallest refactor commit/patch if a behavior mismatch appears.
    - Keep characterization tests when they correctly describe existing behavior.
 
-## Phase 5: Split oversized classes/functions
+### Phase 5: Split oversized classes/functions
+
+**Status:** pending
 
 1. **Goal**
    - Split cohesive logic from oversized classes/functions into smaller files/classes while preserving public API and behavior.
@@ -295,7 +322,9 @@ Result: both commands exited with code 0. This is the clean baseline before docu
    - Prefer one cohesive split per commit/patch so it can be reverted independently.
    - If Micronaut injection/proxy behavior changes, revert the split and consider a private-helper-only approach.
 
-## Phase 6: Final verification
+### Phase 6: Final verification
+
+**Status:** pending
 
 1. **Goal**
    - Prove the completed documentation/test/refactor work preserved behavior and meets constraints.
