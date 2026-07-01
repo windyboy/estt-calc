@@ -125,3 +125,149 @@ Before creating planning files, `git status --short` showed existing modified/un
 - Untracked: `.codex/`
 
 These should be preserved and not overwritten without user approval.
+
+# Findings: ESTT Second Refactoring Pass Planning
+
+## Previous diff and baseline review
+
+- Current HEAD is `0094d4d Document refactor pass`.
+- The first-pass refactor was too shallow because production changes were limited mainly to:
+  - `HistoryFlightProvider`: history-window extraction and minor predicate/tolerance cleanup.
+  - `EsttService`: extraction of input validation into `EsttInputValidator` while retaining most orchestration complexity.
+- Most first-pass work was documentation, characterization tests, planning/progress updates, and final verification.
+- Current uncommitted source/test changes predate this second-pass planning session and must be preserved:
+  - `.gitignore`
+  - `InvalidFlightDateException.kt`
+  - `InvalidFlightDateExceptionHandler.kt`
+  - `FlyingTimeCalculator.kt`
+  - `GlobalExceptionHandlerTest.kt`
+  - `.codex/`
+- The uncommitted `FlyingTimeCalculator.kt` diff removes `ensureValidSeasonalFlight(...)` and its KDoc. Treat as existing user work; do not overwrite or assume it is part of the second pass.
+
+## Chinese inline documentation audit
+
+- Current `src/main/kotlin` and `src/test/kotlin` contain no Chinese comments/KDoc.
+- Accessible recent git revisions checked (`HEAD`, `8d5696d`, `7fa7ddc`) also did not show Chinese text in `src/**/*.kt` using `git grep -P "[\\x{4e00}-\\x{9fff}]"`.
+- README contains detailed Chinese business rules that should be reflected in source comments where they clarify non-obvious behavior:
+  - Operation days are digit-encoded `1..7`; matching must be digit-wise, not substring-unsafe.
+  - History query excludes the target operation date by using the previous day as the upper bound.
+  - Historical sample filters include operation day, previous departure before actual arrival, scheduled date equals flight date, flying-time tolerance, and schedule-deviation tolerance.
+  - Flying-time tolerance is strict (`< maxFlyingTimeDeviation`); equality is rejected.
+  - Schedule late deviation is inclusive at the threshold (`<= maxScheduleDeviation`); early arrivals are always accepted.
+  - Median is integer median; even sample count uses integer average of the two middle values.
+  - Seasonal fallback requires a positive configured `flyingTime`; otherwise source is `NONE` with null flying time.
+
+## Complexity and duplication audit
+
+- Largest production files:
+  - `EsttService.kt`: 426 lines.
+  - `EsttController.kt`: 239 lines.
+  - `HistoryFlightProvider.kt`: 198 lines.
+  - `FlyingTimeCalculator.kt`: 154 lines.
+- Highest-value internal refactor candidates:
+  - `EsttService`: separate MDC/timer lifecycle, metric source tag mapping, calculator-result response mapping, and seasonal validation helpers while preserving public service methods.
+  - `EsttController`: extract private request-flow/error helpers carefully; routes, annotations, method signatures, response statuses, and messages must stay unchanged.
+  - `HistoryFlightProvider`: split mutable pagination scan state from filtering and metrics; preserve order, capped total, offset/limit, and `hasMore` semantics.
+  - `FlyingTimeCalculator`: split history path, seasonal fallback path, no-estimate path, and metric recording from `calculate`.
+  - `OperationDays`, repositories, and config: restore Chinese comments for domain/SQL/config semantics without logic changes.
+
+## Documentation files inspected
+
+- `README.md` now includes implementation structure and detailed Chinese/English algorithm notes.
+- `docs/development.md` exists from the prior pass and documents developer workflow.
+- Documentation should not be changed during the first planning-only phase. Future documentation sync should be limited to reflecting actual structure if internal helper files/classes are added.
+
+# Findings: ESTT Second Refactoring Pass Bilingual Planning Update
+
+## Bilingual documentation audit update
+
+- Current source and tests contain no Chinese text. README contains the bilingual domain description; source comments are currently English-only where present.
+- Because this project should keep bilingual documentation for major business logic, later implementation should convert important English-only KDoc/inline comments to Chinese-first, English-second comments rather than deleting them.
+- No Chinese-only source comments were found, so there are currently no Chinese-only comments needing English additions.
+- Important existing English comments should be preserved and expanded where they explain domain behavior. Examples include date parsing, operation-day matching, seasonal-flight validation, target-day exclusion, history filtering, schedule-deviation acceptance, median calculation, no-estimate fallback, pagination metrics, and repository SQL assumptions.
+
+## Business logic lacking clear bilingual source documentation
+
+- `EsttService.parseFlightDate`: strict `yyMMdd`, exact six digits, `2000..2099` mapping, and invalid-date exception behavior.
+- `EsttService.cachedSeasonalFlight`: DB `INSTR` prefilter plus in-service operation-day/date-window revalidation.
+- `EsttService.cachedHistoryFlights` / `getHistoryFlightsWithSeasonFlight`: no seasonal flight means no history sample and empty list behavior.
+- `EsttService.calculate`: MDC lifecycle and timer metrics around calculation pipeline.
+- `EsttService.recordSuccessMetrics`: public metric tag maps `EstimateSource.SEASONAL` to `schedule`.
+- `OperationDays`: digit encoding `1..7`, ignored invalid characters, deduplication, and avoidance of substring false positives.
+- `HistoryFlightProvider`: history window excludes target date, repository scan limit, in-memory filtering, strict flying-time tolerance, and paginated scan semantics.
+- `FlyingTimeCalculator`: schedule deviation rule, median rule, history-vs-seasonal-vs-none decision, and metrics.
+- `HistoryFlightRepository` / `SeasonRepository`: Oracle SQL assumptions and why service-layer filtering/validation remains necessary.
+
+## Complexity and duplication update
+
+- Meaningful second-pass refactor should target private/internal structure rather than public API:
+  - Extract controller request normalization/error helpers without touching routes/signatures/messages.
+  - Extract `EsttService` calculation context/metric mapping/response mapping helpers.
+  - Extract `HistoryFlightProvider` pagination scan state or private scanner helper.
+  - Extract `FlyingTimeCalculator` decision branches and metric recording helpers.
+- Phase 4 characterization tests should precede refactors in these areas because tests/users may rely on exact messages, statuses, response shape, metric tags, pagination semantics, and exception wrapping.
+
+## Phase 0 execution findings on second-pass start
+
+- Phase 0 was restarted from the current working tree at user request.
+- Current HEAD remains `0094d4d Document refactor pass`.
+- Recent history confirms the previous pass was shallow at production-code level:
+  - `4675ffb Simplify history flight filtering` touched only `HistoryFlightProvider.kt` plus planning/progress.
+  - `d6a84fa Extract ESTT input validation` added `EsttInputValidator.kt` and reduced `EsttService.validateInputs` to a delegating private function.
+  - The rest of first-pass work was mainly docs, tests, and verification records.
+- Current scoped source/test diff still contains pre-existing user work, not second-pass refactor work:
+  - `InvalidFlightDateException.kt`: constructor message changed to nullable/default null.
+  - `InvalidFlightDateExceptionHandler.kt`: response type changed from `Map<String, String>` to `ErrorResponse` with `VALIDATION_ERROR`.
+  - `FlyingTimeCalculator.kt`: `ensureValidSeasonalFlight(...)` and its KDoc removed.
+  - `GlobalExceptionHandlerTest.kt`: tests added for `InvalidFlightDateExceptionHandler` standard validation response and null default message.
+- `README.md`, `docs/development.md`, `build.gradle`, and `settings.gradle` have no current uncommitted diff in the scoped review.
+- First-pass source diff (`7fa7ddc..0094d4d`) confirms no deeper structural split happened beyond validation extraction and small history filtering cleanup.
+
+
+## Phase 1 execution findings: bilingual inline documentation audit
+
+- Phase 1 was executed after the user requested the next phase from Phase 0.
+- Current `src/main/kotlin` and `src/test/kotlin` still contain no Chinese text; all source-level business comments/KDoc are English-only or absent.
+- README contains bilingual business/domain descriptions, especially algorithm steps and implementation structure, but those rules are not mirrored bilingually in source KDoc/inline comments.
+- Existing English comments that should be preserved and expanded bilingually include:
+  - `EsttService.parseFlightDate`: strict `yyMMdd`, exact six digits, and `2000..2099` mapping.
+  - `EsttService.cachedSeasonalFlight`: `INSTR` DB prefilter and service-side revalidation for operation day and season bounds.
+  - `EsttService.cachedHistoryFlights`: no seasonal flight produces an empty cached history list.
+  - `EsttService.calculate`: MDC keys and timer lifecycle; removing only keys added by this method.
+  - `HistoryFlightProvider.getHistoryFlights`: inclusive SQL `BETWEEN` with end date set to target date minus one day to avoid self-sampling.
+  - `HistoryFlightProvider.isEligibleHistoryFlight`: operation-day alignment, time-order gate, scheduled-date match, strict flying-time tolerance, null seasonal time skip.
+  - `FlyingTimeCalculator.calculate`: history threshold, median decision, seasonal fallback, no-estimate branch, and Micrometer source counters.
+  - `FlyingTimeCalculator.getQualifiedHistoryFlights`: early arrivals accepted and late arrivals accepted through the inclusive configured threshold.
+  - `FlyingTimeCalculator.medianFlyingTime`: integer median and integer average for even sample counts.
+  - `OperationDays`: digit encoding `1..7`, ignored invalid characters, duplicate deduplication, and avoiding substring false positives.
+  - Repository KDoc: Oracle SQL assumptions, arrival-only filter, inclusive date bounds, and paginated scans.
+- Comments that are likely too obvious and should not receive bilingual expansion unless they remain near important extracted logic:
+  - `// Validate pagination parameters` in `EsttController`.
+  - Generic KDoc such as "Get the day of the week" unless retained as part of a larger domain explanation.
+- Phase 1 did not modify source, tests, README, docs, Gradle files, SQL, configuration, dependencies, routes, DTOs, or behavior.
+
+
+## Phase 2 execution findings: complexity and duplication audit
+
+- Phase 2 was executed after Phase 1. No source or documentation files were modified.
+- Largest production complexity hotspots remain:
+  - `EsttService.kt` (426 lines): mixes repository cache wrappers, seasonal validation, history lookup, calculation pipeline, MDC lifecycle, metrics, and response construction.
+  - `EsttController.kt` (239 lines): repeats normalize/validate/parse/log/fold/error-response flow across seasonal, history, and calculate endpoints.
+  - `HistoryFlightProvider.kt` (198 lines): `getPaginatedHistory` combines raw-page scanning, mutable pagination state, filtering, total capping, `hasMore` derivation, and metrics.
+  - `FlyingTimeCalculator.kt` (154 lines): `calculate` combines sample qualification, history median branch, seasonal fallback branch, no-estimate branch, logging, and metric counters.
+- Meaningful internal refactor opportunities, preserving public API/behavior:
+  - `EsttService`: extract private helpers for MDC/timer calculation context, metric source-tag mapping, no-estimate response mapping, calculator-result-to-response mapping, and seasonal-flight validation logging.
+  - `EsttController`: extract private helpers for flight-number normalization/validation flow, pagination validation, and repeated `DATABASE_ERROR`/`CALCULATION_ERROR` response construction, while preserving route annotations, method signatures, HTTP statuses, and exact messages.
+  - `HistoryFlightProvider`: extract a private pagination scan accumulator/state object or private scanner helper. Preserve raw fetch ordering, chunk size `maxOf(limit, 100)`, `rawOffset` behavior, `reportedTotal = minOf(totalFiltered, maxHistoryRows)`, `hasMore`, and all metric names/tags.
+  - `FlyingTimeCalculator`: extract private branch builders and metrics helpers: history result, history accuracy metrics, seasonal fallback result, no-estimate result, schedule deviation predicate, and duration-to-median helper. Preserve messages and metric tags exactly (`source=schedule` for seasonal fallback).
+  - `OperationDays`: small but domain-sensitive; avoid behavior changes. Potential documentation-only improvement is safer than implementation refactor unless tests are expanded first.
+- Test complexity observations:
+  - `EsttServiceTest.kt` is the largest test file (634 lines) and includes pagination, metrics, and helper construction. Test refactor is optional and should not precede behavior characterization unless it improves clarity without changing assertions.
+  - Existing focused tests cover many risky behaviors, but Phase 4 should add/confirm characterization before changing pagination scan state, controller error mapping, and metric tag logic.
+- Risk hotspots requiring exact preservation in later phases:
+  - Controller error messages/statuses and exception propagation.
+  - `InvalidFlightDateException` handling, especially because current uncommitted changes alter its response shape.
+  - Pagination `hasMore`, `totalFiltered`, offset/limit, chunking, and cap semantics.
+  - Metric names/tags and source mapping (`EstimateSource.SEASONAL` -> `schedule`).
+  - Date parsing and operation-day matching semantics.
+  - History filter ordering only if logs/tests depend on diagnostics; boolean outcome must remain identical.

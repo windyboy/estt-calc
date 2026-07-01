@@ -277,3 +277,111 @@ Results:
   - `.codex/`
 
 Updated `task_plan.md` to mark Phase 6 complete. All planned phases are now complete.
+
+### Second refactoring pass planning completed
+
+Planning-only first phase completed on 2026-07-01.
+
+Actions performed:
+
+- Read the `planning-with-files` skill.
+- Attempted the documented session catchup script at `~/.codex/...`; it was not present.
+- Re-ran session catchup from `.codex/skills/planning-with-files/scripts/session-catchup.py`; it completed successfully.
+- Reviewed existing `task_plan.md`, `findings.md`, and `progress.md` from the first pass.
+- Inspected current git status, recent commits, current diff/stat, source/test file sizes, Chinese text presence, first-pass source diff, and key production hotspots.
+- Replaced `task_plan.md` with a second-pass plan using the required `### Phase 0` through `### Phase 7` headings.
+- Appended second-pass findings to `findings.md`.
+
+No source code files, tests, README, docs, Gradle files, dependency files, SQL, or configuration files were modified by this planning phase.
+
+### Second refactoring pass bilingual planning update completed
+
+Renewed planning-only pass completed on 2026-07-01.
+
+Actions performed:
+
+- Re-read the `planning-with-files` skill because it was explicitly requested again.
+- Re-read the current plan before updating it.
+- Ran the repository-local session catchup script.
+- Re-inspected git status, recent commits, current diff stat, Chinese text presence, current source comments/KDoc, and source/test size hotspots.
+- Rewrote `task_plan.md` to align with the new bilingual documentation requirements and the exact required phase title `### Phase 1: Bilingual inline documentation audit`.
+- Appended updated bilingual documentation and complexity findings to `findings.md`.
+
+No Kotlin source, tests, README, docs, Gradle files, SQL, configuration, dependencies, routes, or DTOs were modified.
+
+### Phase 0 restarted and completed
+
+User requested: “start from phase 0”. Executed Phase 0 only.
+
+Commands run:
+
+```bash
+git status --short
+git log --oneline -10
+git diff --stat
+git diff -- src/main/kotlin src/test/kotlin README.md docs/development.md build.gradle settings.gradle
+git diff --stat 7fa7ddc..0094d4d -- src/main/kotlin src/test/kotlin README.md docs/development.md build.gradle settings.gradle
+git diff 7fa7ddc..0094d4d -- src/main/kotlin src/test/kotlin | rg -n "^diff|^@@|^[-+].*(fun |class |/\*\*|//|[一-龥])"
+```
+
+Results:
+
+- Phase 0 inspection completed successfully.
+- Current HEAD remains `0094d4d Document refactor pass`.
+- Current uncommitted source/test changes remain pre-existing and were not modified.
+- Previous pass production simplification confirmed shallow: only `EsttInputValidator` extraction and minor `HistoryFlightProvider` cleanup were implemented.
+- No Kotlin source, tests, README, docs, Gradle, SQL, configuration, dependencies, routes, DTOs, or behavior were modified.
+
+Next phase is Phase 1: Bilingual inline documentation audit, unless the user asks to pause or revise the plan.
+
+
+### Phase 1 bilingual inline documentation audit completed
+
+Executed Phase 1 only.
+
+Commands run:
+
+```bash
+rg -n "[一-龥]" src/main/kotlin src/test/kotlin README.md docs/development.md build.gradle settings.gradle || true
+rg -n "^\s*/\*\*|^\s*\* |^\s*//" src/main/kotlin || true
+rg -n "^\s*/\*\*|^\s*\* |^\s*//" src/test/kotlin || true
+sed -n '28,56p' README.md
+sed -n '88,106p' README.md
+sed -n '1,180p' docs/development.md
+```
+
+Results:
+
+- Source/tests contain no Chinese text.
+- Source-level comments are English-only where present.
+- README has bilingual business rules that should guide source-level bilingual comments in Phase 3.
+- Identified specific KDoc/inline comment sites for bilingual restoration/improvement.
+- Adjusted `task_plan.md` status so Phase 2 is pending; the active progression is now Phase 0 complete, Phase 1 complete, Phase 2 pending.
+- No source, tests, README, docs, Gradle files, SQL, configuration, dependencies, routes, DTOs, or behavior were modified.
+
+Next phase is Phase 2: Complexity and duplication audit.
+
+
+### Phase 2 complexity and duplication audit completed
+
+Executed Phase 2 only.
+
+Commands run:
+
+```bash
+find src/main/kotlin src/test/kotlin -name '*.kt' -print0 | xargs -0 wc -l | sort -nr | head -60
+rg -n "fold\(|runCatching|return@runCatching|MDC|meterRegistry|Duration\.between|OperationDays\.matches|getArrivalFlightPage|HttpResponse\.serverError|HttpResponse\.badRequest|HttpResponse\.ok|require\(|if \(|else|while \(" src/main/kotlin src/test/kotlin
+sed -n '1,430p' src/main/kotlin/com/gzzn/airport/service/EsttService.kt
+sed -n '1,270p' src/main/kotlin/com/gzzn/airport/resource/EsttController.kt
+sed -n '1,230p' src/main/kotlin/com/gzzn/airport/service/history/HistoryFlightProvider.kt
+sed -n '1,210p' src/main/kotlin/com/gzzn/airport/service/calculator/FlyingTimeCalculator.kt
+```
+
+Results:
+
+- Confirmed meaningful internal refactor targets in `EsttService`, `EsttController`, `HistoryFlightProvider`, and `FlyingTimeCalculator`.
+- Recorded specific private/internal extraction opportunities in `findings.md`.
+- Marked Phase 2 complete in `task_plan.md`; Phase 3 is now pending.
+- No Kotlin source, tests, README, docs, Gradle files, SQL, configuration, dependencies, routes, DTOs, or behavior were modified.
+
+Next phase is Phase 3: Restore/improve bilingual KDoc and inline docs.
