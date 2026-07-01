@@ -6,11 +6,6 @@ import io.micronaut.data.annotation.Query
 import io.micronaut.data.jdbc.annotation.JdbcRepository
 import io.micronaut.data.model.query.builder.sql.Dialect
 
-/**
- * 读取 FIMS 航季和航季计划主数据；查询结果仍需由服务层复核运营日和航季日期边界。
- * Reads FIMS season and seasonal schedule master data; service code still revalidates
- * operation-day and season-window boundaries.
- */
 @JdbcRepository(dialect = Dialect.ORACLE)
 interface SeasonRepository {
     companion object {
@@ -18,10 +13,6 @@ interface SeasonRepository {
         const val ARRI_OR_DEPT_ARRIVAL = 'A'
     }
 
-    /**
-     * 根据激活标记返回航季主记录。
-     * Returns the flight-season master record for the requested active flag.
-     */
     @Query(
         """
 	select
@@ -33,12 +24,8 @@ interface SeasonRepository {
     )
     fun getFlightSeason(isActive: Boolean = true): FlightSeason?
 
-    /**
-     * 使用 `INSTR(OPERATION_DAYS, :operationDay)` 作为数据库预筛选；服务层会再次逐位校验，
-     * 防止运营日编码匹配出现误判。
-     * Uses `INSTR(OPERATION_DAYS, :operationDay)` as a database prefilter; service code
-     * validates digit-wise again to avoid operation-day false matches.
-     */
+    // INSTR 仅为数据库预筛选；服务层逐位校验运营日。
+    // INSTR is a DB prefilter only; service revalidates operation-day digits.
     @Query(
         """
             select

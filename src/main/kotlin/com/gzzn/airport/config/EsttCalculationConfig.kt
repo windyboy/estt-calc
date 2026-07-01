@@ -3,11 +3,7 @@ package com.gzzn.airport.config
 import io.micronaut.context.annotation.Value
 import jakarta.inject.Singleton
 
-/**
- * 集中管理 ESTT 计算参数，并在应用启动时尽早校验配置，避免错误配置进入运行期计算。
- * Centralizes ESTT calculation parameters and validates them eagerly so misconfiguration
- * fails fast during application startup.
- */
+/** 集中管理 ESTT 计算参数，启动时校验配置。Centralizes ESTT parameters with fail-fast validation. */
 @Singleton
 class EsttCalculationConfig(
     @param:Value("\${estt.calculation.max-schedule-deviation:120}") val maxScheduleDeviation: Int,

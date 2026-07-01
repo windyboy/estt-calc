@@ -14,11 +14,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import kotlin.math.abs
 
-/**
- * 封装历史航班读取、分页扫描和业务过滤，让核心服务只负责流程编排。
- * Encapsulates historical retrieval, paginated scanning, and business filtering so the core service
- * can remain focused on orchestration.
- */
 @Singleton
 class HistoryFlightProvider(
     private val historyFlightRepository: HistoryFlightRepository,
@@ -32,14 +27,8 @@ class HistoryFlightProvider(
         private val log = LoggerFactory.getLogger(HistoryFlightProvider::class.java)
     }
 
-    /**
-     * 按航季计划读取并过滤历史样本。
-     * Loads and filters historical samples for the provided seasonal schedule.
-     *
-     * SQL 的 `BETWEEN` 两端包含；这里把目标日期前一天作为上界，避免目标航班参与自身估算。
-     * SQL `BETWEEN` is inclusive; this uses the day before the target date as the upper bound so the
-     * target flight never appears in its own sample.
-     */
+    // 历史窗口排除目标日期（endDate = flightDate - 1）。
+    // History window excludes target date (endDate = flightDate - 1 day).
     fun getHistoryFlights(seasonalFlight: SeasonalFlight, flightDate: LocalDate): List<HistoricalFlight> {
         val window = historyWindow(seasonalFlight, flightDate)
         log.debug(
@@ -64,13 +53,6 @@ class HistoryFlightProvider(
         return filtered
     }
 
-    /**
-     * 分块扫描原始历史记录，先过滤再分页；`offset` 和 `limit` 作用于过滤后的样本序列。
-     * Scans raw history in chunks, filters first, then applies `offset` and `limit` to the filtered sequence.
-     *
-     * `hasMore` 同时反映已观察到的额外过滤样本和扫描上限截断，属于接口可见语义。
-     * `hasMore` reflects both observed extra filtered samples and scan-limit truncation; it is API-visible behavior.
-     */
     fun getPaginatedHistory(seasonalFlight: SeasonalFlight, flightDate: LocalDate, offset: Int, limit: Int): PaginatedHistoryResponse {
         val window = historyWindow(seasonalFlight, flightDate)
         val scanResult = historyPaginationScanner.scan(
@@ -128,15 +110,8 @@ class HistoryFlightProvider(
 
     private fun calculateHistoryStartDate(seasonStart: LocalDate): LocalDate = seasonStart.minusDays(config.historyStartOffsetDays)
 
-    /**
-     * 历史样本的业务准入规则，确保样本与航季计划一致。
-     * Business gatekeeper ensuring historical samples align with the seasonal schedule.
-     *
-     * 飞行时长容差使用开区间，等于 [EsttCalculationConfig.maxFlyingTimeDeviation] 时会被剔除；
-     * 航季飞行时长未配置时跳过该项过滤。
-     * Flying-time tolerance is exclusive at [EsttCalculationConfig.maxFlyingTimeDeviation]; when seasonal
-     * flying time is not configured, this tolerance check is skipped.
-     */
+    // 飞行时长容差为开区间（< maxFlyingTimeDeviation）；航季时长未配置时跳过。
+    // Flying-time tolerance is strict (< maxFlyingTimeDeviation); skip when seasonal time is null.
     private fun isEligibleHistoryFlight(seasonalFlight: SeasonalFlight, historyFlight: HistoricalFlight): Boolean {
         val operationDay = historyFlight.flightDate.dayOfWeek.value
         val actualFlyTime = calculateDurationMinutes(historyFlight.previousDepartureTime, historyFlight.actualTime)

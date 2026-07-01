@@ -400,3 +400,73 @@ The refactor passes improved correctness and test coverage, but **did not reduce
 ## No further action unless goal changes
 
 Stop new planning phases. Future work should **delete or merge**, not split.
+
+# Findings: Simplification plan v3 (2026-06-29)
+
+## Why a new plan
+
+The refactor pass added structure without reducing size. v3 optimizes for **measurable deletion**, not extraction.
+
+## Baseline (HEAD `4bc60cb`)
+
+| Item | Value |
+|------|-------|
+| `EsttService.kt` | 436 lines |
+| `EsttController.kt` | 243 lines (mostly OpenAPI; poor ROI) |
+| `FlyingTimeCalculator.kt` | 128 lines (stable after rollback) |
+| `HistoryFlightProvider` + scanner | 168 + 79 lines (keep) |
+| `EsttInputValidator.kt` | 21 lines (merge candidate) |
+| Production `.kt` files | 25 |
+
+## Highest-yield simplification targets
+
+1. **Comment trim in `EsttService`** — bilingual KDoc adds ~80+ lines with little runtime value
+2. **Remove `getHistoryFlightsWithSeasonFlight`** — duplicate of provider call when seasonal is already known
+3. **Merge `EsttInputValidator`** — one call site, one file too many
+4. **Init/log ceremony in `EsttService`** — verbose startup logs
+
+## Explicitly not recommended
+
+- Re-splitting `FlyingTimeCalculator` or `EsttController`
+- Inlining `HistoryPaginationScanner` back into provider (would grow one file, not shrink total)
+- New helper classes or packages
+- Test file merges in v3 (high risk, low line savings)
+
+## Success criteria for v3
+
+- `EsttService.kt` ≤ 340 lines
+- Total main source −10% or more
+- File count ≤ 24
+- `./gradlew check` green
+
+# Findings: Simplification plan v3 execution (2026-07-01)
+
+## Before / after
+
+| Metric | Baseline | After | Δ |
+|--------|----------|-------|---|
+| `EsttService.kt` | 436 | 342 | −94 |
+| Main `src/main/kotlin` total | ~1,800 | 1,477 | −323 (~18%) |
+| Production `.kt` files | 25 | 24 | −1 |
+
+## Changes delivered
+
+- **Phase 1:** Trimmed verbose KDoc; kept short bilingual comments on domain rules per user compromise (option 2). Model field essays (`FlyingTimeResponse`, `PaginatedHistoryResponse`) not restored.
+- **Phase 2:** Removed `getHistoryFlightsWithSeasonFlight`; `calculateWithSeasonalFlight` calls `historyFlightProvider.getHistoryFlights` directly with same error log message.
+- **Phase 3:** Consolidated 7-line `init` into one structured log; inlined `getOperationDay`.
+- **Phase 4:** Deleted `EsttInputValidator.kt`; inlined 4 `require` checks into `EsttService.validateInputs`.
+- **Phase 5:** `git diff --check` and `./gradlew check` passed.
+
+## Comment policy applied
+
+- Chinese-first, English-second, no `中文：` / `English:` labels.
+- Domain rules only: `yyMMdd`, operation-day digits, history window, flying-time `<` tolerance, INSTR/BETWEEN SQL semantics, SEASONAL→`schedule` metric tag.
+- `FlyingTimeCalculator.kt` bilingual comments left unchanged.
+
+## Verification
+
+```bash
+git diff --check          # pass
+./gradlew spotlessCheck   # pass
+./gradlew check           # pass (2026-07-01)
+```

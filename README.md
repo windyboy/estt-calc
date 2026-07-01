@@ -89,8 +89,7 @@ Seasonal `operationDays` is a string of digits **1–7** where **1 = Monday … 
 
 ### 实现结构 (Implementation Structure)
 
-- `EsttService`：编排入口，负责缓存、日志/指标及响应封装。
-- `EsttInputValidator`：内部计算输入校验，保留现有错误消息和日期边界规则。
+- `EsttService`：编排入口，负责输入校验、缓存、日志/指标及响应封装。
 - `HistoryFlightProvider`：历史数据查询与业务过滤（运营日、时间顺序、飞行时长容差等）。
 - `FlyingTimeCalculator`：中位数计算、季节回退/无估计决策及 Micrometer 指标。
 
@@ -490,8 +489,7 @@ Interactive API documentation and testing interface
 ### Key Components
 
 - **EsttController**: REST API endpoints with validation
-- **EsttService**: Orchestrates seasonal lookup, history retrieval, calculation, metrics, and responses
-- **EsttInputValidator**: Internal calculation input validation helper
+- **EsttService**: Orchestrates input validation, seasonal lookup, history retrieval, calculation, metrics, and responses
 - **HistoryFlightProvider**: Historical flight retrieval, pagination, and eligibility filtering
 - **FlyingTimeCalculator**: Median calculation, seasonal fallback, no-estimate decisions, and calculation metrics
 - **SeasonRepository**: Access to seasonal flight schedules
@@ -538,17 +536,16 @@ The service layer uses custom `flatMap` extension to chain Result operations ele
 
 ```kotlin
 fun getHistoryFlights(...): Result<List<HistoricalFlight>> {
-    return getSeasonalFlight(flightNumber, flightDate)
-        .flatMap { seasonalFlight ->
-            if (seasonalFlight == null) {
-                Result.success(emptyList())  // Business case: no data
-            } else {
-                getHistoryFlightsWithSeasonFlight(seasonalFlight, flightDate)
-            }
+    return runCatching {
+        val seasonalFlight = cachedSeasonalFlight(flightNumber, flightDate)
+        if (seasonalFlight == null) {
+            emptyList()  // Business case: no seasonal schedule
+        } else {
+            historyFlightProvider.getHistoryFlights(seasonalFlight, flightDate)
         }
-        .onFailure { e ->
-            log.error("Error getting history", e)
-        }
+    }.onFailure { e ->
+        log.error("Error getting history flights", e)
+    }
 }
 ```
 
@@ -727,10 +724,15 @@ Configure log levels in `logback.xml` or via environment variables.
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
+- **2026-07-01** (simplification pass v3)
+  - Reduced main Kotlin source by ~18% while preserving public API and behavior
+  - Merged `EsttInputValidator` back into `EsttService`; removed duplicate history-fetch path
+  - Trimmed verbose KDoc; kept short bilingual comments on domain-critical rules only
+  - Verified with `./gradlew check`
+
 - **2026-07-01** (documentation and safe refactor pass)
   - Added README Quick Start and `docs/development.md` developer workflow/troubleshooting guide
   - Added characterization tests for schedule-deviation boundaries, integer median behavior, and flying-time tolerance filtering
-  - Extracted calculation input validation into internal `EsttInputValidator`
   - Simplified private history-window/filtering helpers in `HistoryFlightProvider`
   - Verified with focused tests, full `./gradlew test`, and `./gradlew check`
 

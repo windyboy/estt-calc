@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-07-01 — Simplification pass (v3)
+
+### Code quality
+
+- Reduced main Kotlin source volume (~1,800 → ~1,477 lines; 25 → 24 production files) without changing public API, HTTP routes, response fields, error messages, metrics tags, SQL, or cache names.
+- Merged `EsttInputValidator` back into `EsttService` as a private `validateInputs` method (same validation messages and date bounds).
+- Removed redundant `getHistoryFlightsWithSeasonFlight`; calculation path calls `HistoryFlightProvider` directly when seasonal schedule is already known.
+- Consolidated verbose startup logging in `EsttService` to a single structured info line.
+- Trimmed verbose KDoc across service, models, and repositories; kept short bilingual comments on domain-critical rules only (date parsing, operation-day matching, history window, tolerance thresholds, SQL prefilter semantics).
+
+### Verification
+
+- `./gradlew check` passed.
+
+---
+
 ## 2026-07-01 — Documentation and safe refactor pass
 
 ### Documentation
@@ -13,7 +29,6 @@
 
 ### Code quality
 
-- Extracted calculation input validation from `EsttService` into internal `EsttInputValidator` while preserving public API and validation messages.
 - Simplified private history-window and eligibility-filtering helpers in `HistoryFlightProvider` without changing repository SQL, metrics, cache names, API output, or behavior.
 
 ### Verification

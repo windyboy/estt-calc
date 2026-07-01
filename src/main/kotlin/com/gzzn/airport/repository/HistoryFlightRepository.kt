@@ -6,27 +6,14 @@ import io.micronaut.data.jdbc.annotation.JdbcRepository
 import io.micronaut.data.model.query.builder.sql.Dialect
 import java.time.LocalDate
 
-/**
- * 访问 `FIMS_FLIGHTSCHD_HST` 历史航班事实表；SQL 只做稳定的数据边界过滤，
- * 运营日、容差等业务规则仍由服务层统一判断。
- * Accesses historical facts in `FIMS_FLIGHTSCHD_HST`; SQL applies stable data-boundary filters,
- * while operation-day and tolerance business rules remain centralized in the service layer.
- */
 @JdbcRepository(dialect = Dialect.ORACLE)
 interface HistoryFlightRepository {
     companion object {
         const val ARRI_OR_DEPT_ARRIVAL = 'A'
     }
 
-    /**
-     * 按最近航班日期倒序获取到港历史，并通过 `maxRows` 控制扫描上限。
-     * Fetches arrival history capped by `maxRows`, ordered by most recent flight date.
-     *
-     * `flight_date BETWEEN :startDate AND :endDate` 两端都包含；调用方传入目标日前一天
-     * 作为 `endDate`，避免把正在估算的航班纳入自身样本。
-     * `flight_date BETWEEN :startDate AND :endDate` is inclusive on both bounds; callers pass
-     * the day before the target operation date as `endDate` so the estimated flight is not self-sampled.
-     */
+    // BETWEEN 两端包含；调用方以目标日前一天为 endDate，排除自身样本。
+    // BETWEEN is inclusive; callers pass flightDate - 1 as endDate to exclude the target flight.
     @Query(
         """
 SELECT
@@ -56,11 +43,6 @@ FETCH FIRST :maxRows ROWS ONLY
         arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL,
     ): List<HistoricalFlight>
 
-    /**
-     * 按 offset/limit 分页读取原始历史数据，供服务层边扫描边做业务过滤。
-     * Fetches a raw arrival-history page using offset/limit so the service layer can scan
-     * iteratively while applying business filters.
-     */
     @Query(
         """
 SELECT

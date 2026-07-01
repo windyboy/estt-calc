@@ -596,3 +596,54 @@ After review, inlined marginal Phase 8–9 helpers:
 Planning files updated to archive refactor work and stop further phases.
 
 Verification: `./gradlew check` passed.
+
+### Simplification plan v3 created (2026-06-29)
+
+User requested a practical simplification plan after simplicity review.
+
+Actions:
+
+- Replaced archived refactor `task_plan.md` with **Simplification Plan v3** (5 implementation phases + baseline).
+- Recorded baseline metrics and deletion-first principles in `findings.md`.
+- Phase 0 marked complete; Phases 1–5 pending user approval to execute.
+
+**Next action:** Phase 1 — trim comment noise in `EsttService` and related files.
+
+### Simplification plan v3 Phases 1–5 executed (2026-07-01)
+
+User approved execution (`/planning-with-files 执行计划`). Mid-session adjusted Phase 1 to **option 2**: short bilingual comments on domain rules only; no model field KDoc restoration.
+
+**Phase 1 — trim comment noise**
+
+- Trimmed bilingual KDoc in `EsttService`, `HistoryFlightProvider`, repositories, models, config.
+- Restored concise bilingual inline comments on domain-critical rules after user feedback.
+
+**Phase 2 — deduplicate history flow**
+
+- Removed `getHistoryFlightsWithSeasonFlight`.
+- `calculateWithSeasonalFlight` calls provider directly; error message preserved.
+
+**Phase 3 — slim ceremony**
+
+- Single structured `init` log.
+- Inlined `getOperationDay` → `flightDate.dayOfWeek.value`.
+
+**Phase 4 — merge EsttInputValidator**
+
+- Deleted `EsttInputValidator.kt`.
+- Inlined validation into `EsttService.validateInputs`.
+
+**Phase 5 — verify and measure**
+
+```bash
+git diff --check    # pass
+./gradlew check     # pass
+```
+
+| Metric | Before | After |
+|--------|--------|-------|
+| `EsttService.kt` | 436 | 342 |
+| Main Kotlin lines | ~1,800 | 1,477 |
+| Production files | 25 | 24 |
+
+All v3 phases marked complete in `task_plan.md`.

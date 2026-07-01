@@ -1,12 +1,8 @@
 package com.gzzn.airport.model
 
 /**
- * 解析并匹配航季计划中的运营日编码，避免用字符串包含关系造成误匹配。
- * Parses and matches seasonal operation-day encodings without relying on unsafe substring checks.
- *
- * 运营日使用 `1..7` 编码（1 = 周一 … 7 = 周日）；无效字符会被忽略，重复数字会去重。
- * Operation days use digits `1..7` (1 = Monday … 7 = Sunday); invalid characters are ignored
- * and duplicate digits are deduplicated.
+ * 运营日编码为 1..7（周一..周日），逐位匹配，非子串包含。
+ * Operation days encoded as digits 1..7 (Mon..Sun); digit-wise match, not substring.
  */
 object OperationDays {
     fun parse(operationDays: String): Set<Int> = operationDays
