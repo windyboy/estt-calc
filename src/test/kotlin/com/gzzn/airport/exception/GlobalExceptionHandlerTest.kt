@@ -69,6 +69,36 @@ class GlobalExceptionHandlerTest :
             }
         }
 
+        describe("InvalidFlightDateExceptionHandler") {
+            val handler = InvalidFlightDateExceptionHandler()
+
+            it("should return 400 with standard validation error response") {
+                val request = HttpRequest.GET<Any>("/test")
+                val exception = InvalidFlightDateException("Invalid flight date: 230229")
+
+                val response = handler.handle(request, exception)
+
+                response.status shouldBe HttpStatus.BAD_REQUEST
+                val body = response.body()!!
+                body.status shouldBe 400
+                body.error shouldBe "VALIDATION_ERROR"
+                body.message shouldBe "Invalid flight date: 230229"
+            }
+
+            it("should use default message when exception message is null") {
+                val request = HttpRequest.GET<Any>("/test")
+                val exception = InvalidFlightDateException(null)
+
+                val response = handler.handle(request, exception)
+
+                response.status shouldBe HttpStatus.BAD_REQUEST
+                val body = response.body()!!
+                body.status shouldBe 400
+                body.error shouldBe "VALIDATION_ERROR"
+                body.message shouldBe "Invalid flight date"
+            }
+        }
+
         describe("ErrorResponse") {
             it("should create error response with all fields") {
                 val timestamp = java.time.Instant.now()
