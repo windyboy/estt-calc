@@ -41,14 +41,14 @@ Preferred style:
 
 ```kotlin
 /**
- * 中文：说明这段主要业务逻辑的目的、规则或边界条件。
- * English: Explain the purpose, rule, or edge case behind this major business logic.
+ * 说明这段主要业务逻辑的目的、规则或边界条件。
+ * Explain the purpose, rule, or edge case behind this major business logic.
  */
 ```
 
 ```kotlin
-// 中文：这里说明非显而易见的业务规则或边界条件。
-// English: Explain the non-obvious business rule or edge case here.
+// 这里说明非显而易见的业务规则或边界条件。
+// Explain the non-obvious business rule or edge case here.
 ```
 
 ## Repository baseline observed on 2026-07-01
@@ -170,7 +170,7 @@ Focused commands for planned refactor zones:
 | Phase 0: Second-pass baseline and previous diff review | complete | Low | Established first-pass shallowness, current HEAD, and pre-existing working-tree changes. |
 | Phase 1: Bilingual inline documentation audit | complete | Low | Found English-only source comments and no Chinese source comments; identified domain logic needing bilingual comments. |
 | Phase 2: Complexity and duplication audit | complete | Low | Identified concrete private/internal refactor opportunities. |
-| Phase 3: Restore/improve bilingual KDoc and inline docs | pending | Low | Add concise Chinese-first, English-second comments for major business logic. |
+| Phase 3: Restore/improve bilingual KDoc and inline docs | complete | Low | Added concise Chinese-first, English-second comments for major business logic. |
 | Phase 4: Characterization tests for risky behavior | pending | Medium | Lock behavior before deeper refactors. |
 | Phase 5: Deeper internal Kotlin refactor | pending | Medium | Extract private helpers and reduce duplication without API/behavior changes. |
 | Phase 6: Split oversized private/internal components | pending | Medium | Split cohesive private/internal implementation details when justified. |
@@ -337,7 +337,7 @@ rg -n "fold\(|runCatching|return@runCatching|MDC|meterRegistry|Duration\.between
 
 ### Phase 3: Restore/improve bilingual KDoc and inline docs
 
-**Status:** pending
+**Status:** complete
 
 **Goal**
 

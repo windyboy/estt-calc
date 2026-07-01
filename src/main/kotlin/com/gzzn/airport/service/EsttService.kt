@@ -28,14 +28,13 @@ import java.time.format.DateTimeParseException
 import java.time.format.ResolverStyle
 
 /**
- * Top-level orchestration service for Estimated Seasonal Turnaround Time (ESTT) calculations.
+ * ESTT 计算的顶层编排服务，负责串联航季计划、历史样本、计算器、缓存、日志和指标。
+ * Top-level orchestration service for ESTT calculations, coordinating seasonal schedules,
+ * historical samples, the calculator, caching, logging, and metrics.
  *
- * Delegates responsibilities to collaborators:
- * - [HistoryFlightProvider] handles data access and filtering of historical flights.
- * - [FlyingTimeCalculator] applies median/fallback rules and records metrics.
- * - [EsttCalculationConfig] exposes validated configuration values shared across the workflow.
- *
- * The service keeps the controller-facing API small while remaining composable for tests.
+ * 具体业务筛选和中位数/回退决策委托给协作者，避免控制器直接了解计算细节。
+ * Business filtering and median/fallback decisions are delegated to collaborators so controllers
+ * do not need to know calculation internals.
  */
 @Singleton
 open class EsttService(
@@ -78,10 +77,13 @@ open class EsttService(
         }
 
     /**
-     * Parse a date string into a [LocalDate] using the configured [EsttCalculationConfig.dateFormat].
+     * 按配置解析航班日期；当前仅支持严格的 `yyMMdd`，输入必须正好是六位数字。
+     * Parses a flight date using the configured format; currently only strict `yyMMdd` is supported
+     * and input must be exactly six digits.
      *
-     * Only `yyMMdd` is supported in v1. Input must be exactly six digits with no trailing
-     * characters. Years 00–99 map to 2000–2099.
+     * 年份 `00..99` 映射为 `2000..2099`；错误格式和非法日期都保留现有异常消息。
+     * Years `00..99` map to `2000..2099`; invalid formats and impossible dates preserve the
+     * existing exception messages.
      */
     open fun parseFlightDate(dateString: String): LocalDate {
         if (config.dateFormat != "yyMMdd") {
@@ -107,21 +109,20 @@ open class EsttService(
     private fun getOperationDay(flightDate: LocalDate): Int = flightDate.dayOfWeek.value
 
     /**
-     * Check if a specific day of week matches the operation days string.
-     * Parse operation days as individual digits to avoid false matches (e.g., "1" matching "12").
-     * @param operationDays the operation days string from seasonal flight (e.g., "1234567")
-     * @param dayOfWeek the day of week to check (1-7, where 1 is Monday)
-     * @return true if the day of week is included in the operation days
+     * 逐位匹配航季计划的运营日编码，避免用字符串包含关系导致 `"1"` 误匹配 `"12"`。
+     * Matches seasonal operation-day digits individually to avoid substring false positives such as
+     * `"1"` matching `"12"`.
      */
     internal fun isOperationDayMatch(operationDays: String, dayOfWeek: Int): Boolean = OperationDays.matches(operationDays, dayOfWeek)
 
     /**
-     * Find a seasonal flight for a given flight number and date.
-     * Cached for 4 hours since seasonal schedules rarely change.
-     * Fast-fail circuit breaker: 10 attempts with 500ms delay, giving database 5 seconds total.
-     * @param flightNumber the flight number.
-     * @param flightDate the flight date.
-     * @return the seasonal flight if found, null otherwise, wrapped in a Result.
+     * 查询并校验指定航班在目标日期适用的航季计划；数据库仅做预筛选，服务层再次校验运营日和航季边界。
+     * Finds and validates the seasonal schedule for the target date; the database only prefilters,
+     * while the service rechecks operation-day and season-window boundaries.
+     *
+     * 航季计划变化较少，因此结果缓存 4 小时；熔断器保持快速失败行为。
+     * Seasonal schedules change rarely, so results are cached for four hours; the circuit breaker
+     * preserves fast-fail behavior.
      */
     @Cacheable("seasonal-flight")
     @CircuitBreaker(attempts = "10", delay = "500ms", reset = "60s")
@@ -129,11 +130,12 @@ open class EsttService(
         val operationDay = getOperationDay(flightDate)
         log.debug("Finding seasonal flight for flight number $flightNumber, operation day $operationDay")
 
-        // Pass operationDay as string without wildcards (INSTR handles the search)
+        // 直接传入运营日数字；SQL 中的 INSTR 只作为预筛选，不是最终业务判断。
+        // Pass the operation-day digit directly; SQL INSTR is only a prefilter, not the final rule.
         val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, operationDay.toString())
 
-        // Additional validation: ensure the operation day actually matches
-        // Using helper function to avoid false matches like "1" matching "12"
+        // 再次逐位校验运营日和航季日期范围，避免数据库预筛选产生误匹配。
+        // Revalidate operation-day digits and season dates to guard against prefilter false matches.
         val validatedFlight = seasonalFlight?.let {
             val operationDayMatches = isOperationDayMatch(it.operationDays, operationDay)
             val withinSeasonBounds = !flightDate.isBefore(it.seasonStart) && !flightDate.isAfter(it.seasonEnd)
@@ -171,17 +173,16 @@ open class EsttService(
         }
 
     /**
-     * Get historical flights for a given flight number and date.
-     * Cached for 4 hours since historical data rarely changes.
-     * @param flightNumber the flight number.
-     * @param flightDate the flight date.
-     * @return a list of historical flights wrapped in a Result.
+     * 根据已校验的航季计划获取历史样本；没有航季计划时返回空样本并缓存该结果。
+     * Loads history through the validated seasonal schedule; when no seasonal schedule exists,
+     * returns and caches an empty sample list.
      */
     @Cacheable("history-flights")
     open fun cachedHistoryFlights(flightNumber: String, flightDate: LocalDate): List<HistoricalFlight> {
         val seasonalFlight = cachedSeasonalFlight(flightNumber, flightDate)
         if (seasonalFlight == null) {
-            // Business case: no seasonal flight, cache empty list
+            // 无航季计划时不能构造可信历史样本，保持空列表的既有行为。
+            // Without a seasonal schedule there is no trusted history sample, so keep the existing empty-list behavior.
             return emptyList()
         }
         return historyFlightProvider.getHistoryFlights(seasonalFlight, flightDate)
@@ -195,15 +196,13 @@ open class EsttService(
         }
 
     /**
-     * Get paginated historical flights for a given flight number and date.
-     * Performs chunked repository pagination (bounded by `maxHistoryRows`)
-     * and applies business filtering before building the page.
+     * 分页查询历史样本时先按原始数据分块扫描，再做业务过滤，最后对过滤后的结果应用 offset/limit。
+     * For paginated history, scans raw data in chunks, applies business filters, then applies
+     * offset/limit to the filtered results.
      *
-     * @param flightNumber the flight number.
-     * @param flightDate the flight date.
-     * @param offset the number of filtered results to skip.
-     * @param limit the maximum number of filtered results to return.
-     * @return paginated response with metadata wrapped in a Result.
+     * 扫描受 `maxHistoryRows` 约束；`hasMore` 和 `totalFiltered` 语义是外部可见行为，不能随意调整。
+     * Scanning is bounded by `maxHistoryRows`; `hasMore` and `totalFiltered` semantics are externally
+     * visible and must not change casually.
      */
     open fun getPaginatedHistoryFlights(
         flightNumber: String,
@@ -252,10 +251,9 @@ open class EsttService(
     }
 
     /**
-     * Get historical flights that match a given seasonal flight and date.
-     *
-     * This method exists to keep the primary result pipeline ([calculateWithSeasonalFlight]) clean
-     * and to reuse error handling (logging + Result failure propagation).
+     * 在计算主流程中加载已匹配航季计划的历史样本，并复用 `Result` 错误传播和日志记录。
+     * Loads history for the matched seasonal schedule inside the calculation pipeline while reusing
+     * `Result` failure propagation and logging.
      */
     private fun getHistoryFlightsWithSeasonFlight(seasonalFlight: SeasonalFlight?, flightDate: LocalDate): Result<List<HistoricalFlight>> {
         return runCatching {
@@ -270,20 +268,19 @@ open class EsttService(
     }
 
     /**
-     * Calculate flying time for a given flight number and date.
-     * Uses MDC for structured logging and records metrics for monitoring.
-     * @param flightNumber the flight number.
-     * @param flightDate the flight date.
-     * @return a FlyingTimeResponse object wrapped in a Result.
+     * 执行完整飞行时长估算流程，并围绕该流程设置 MDC 和耗时/结果指标。
+     * Runs the full flying-time estimation pipeline and wraps it with MDC context plus timing/result metrics.
      */
     open fun calculate(flightNumber: String, flightDate: LocalDate): Result<FlyingTimeResponse> {
         validateInputs(flightNumber, flightDate)
 
-        // Add structured logging context
+        // 仅添加本次计算需要的 MDC 键，finally 中会逐个移除。
+        // Add only the MDC keys needed for this calculation; finally removes them individually.
         MDC.put("flightNumber", flightNumber)
         MDC.put("flightDate", flightDate.toString())
 
-        // Start timing for metrics
+        // 计时器覆盖完整计算流程，成功和失败都会停止并记录。
+        // The timer covers the full calculation pipeline and is stopped for both success and failure.
         val timer = Timer.start(meterRegistry)
 
         try {
@@ -292,7 +289,8 @@ open class EsttService(
                 .onSuccess { response -> recordSuccessMetrics(timer, response) }
                 .onFailure { e -> recordFailureMetrics(timer, e) }
         } finally {
-            // Remove only the keys we added to avoid clearing context from other threads
+            // 只移除本方法写入的键，避免清空调用链中已有的 MDC 上下文。
+            // Remove only keys written here so upstream MDC context is not cleared.
             MDC.remove("flightNumber")
             MDC.remove("flightDate")
         }
@@ -326,10 +324,9 @@ open class EsttService(
             }
 
     /**
-     * Record metrics for successful calculation.
-     * @param timer the timer to stop.
-     * @param flightNumber the flight number.
-     * @param response the response.
+     * 记录成功指标；历史、航季回退、无估算分别映射到既有的 source 标签值。
+     * Records success metrics; history, seasonal fallback, and no-estimate outcomes map to the
+     * existing source tag values.
      */
     private fun recordSuccessMetrics(timer: Timer.Sample, response: FlyingTimeResponse) {
         val sourceTag = when (response.source) {
@@ -377,11 +374,9 @@ open class EsttService(
     }
 
     /**
-     * Calculate flying time with a known seasonal flight using historical data.
-     * @param seasonalFlight the seasonal flight to use for calculation.
-     * @param flightNumber the flight number.
-     * @param flightDate the flight date.
-     * @return a FlyingTimeResponse object wrapped in a Result.
+     * 在存在航季计划时组合历史样本和计算器结果；无估算分支必须返回 `flyingTime = null`。
+     * Combines historical samples with the calculator result when a seasonal schedule exists; the
+     * no-estimate branch must return `flyingTime = null`.
      */
     private fun calculateWithSeasonalFlight(
         seasonalFlight: SeasonalFlight,

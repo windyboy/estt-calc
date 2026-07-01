@@ -14,12 +14,9 @@ import java.time.LocalDateTime
 import kotlin.math.abs
 
 /**
- * Encapsulates the business rules for turning historical flights into a flying-time decision.
- *
- * Responsibilities:
- * - Filter raw history so only business-approved samples contribute to the calculation.
- * - Compute the median flying time when enough qualified samples exist.
- * - Fall back to seasonal schedule time or return a no-estimate outcome.
+ * 将已过滤历史样本转换为飞行时长估算结果，集中处理历史中位数、航季回退和无估算分支。
+ * Turns filtered historical samples into a flying-time decision, centralizing the history median,
+ * seasonal fallback, and no-estimate branches.
  */
 @Singleton
 class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val config: EsttCalculationConfig) {
@@ -27,7 +24,8 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
     private val log = LoggerFactory.getLogger(FlyingTimeCalculator::class.java)
 
     /**
-     * Outcome of the calculation step.
+     * 单次计算决策的内部结果，随后由服务层映射为 API 响应。
+     * Internal result of one calculation decision, later mapped by the service layer to the API response.
      */
     data class Result(
         val flyingTime: Long?,
@@ -52,11 +50,13 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
     }
 
     /**
-     * Calculate flying time from pre-filtered historical flights.
+     * 从预过滤的历史样本计算飞行时长。
+     * Calculates flying time from pre-filtered historical samples.
      *
-     * When at least [EsttCalculationConfig.minHistoryFlight] qualified samples remain after the
-     * schedule-deviation filter, returns the integer median of all qualified flying durations.
-     * Otherwise falls back to [SeasonalFlight.flyingTime] when configured, or [EstimateSource.NONE].
+     * 达到最小样本数时使用全部合格样本的整数中位数；否则正数航季时长回退为 `SEASONAL`，
+     * 未配置可用航季时长则返回 `NONE`。
+     * Uses the integer median of all qualified samples when the minimum sample count is met; otherwise
+     * falls back to a positive seasonal time as `SEASONAL`, or returns `NONE` when unavailable.
      */
     fun calculate(seasonalFlight: SeasonalFlight, flightNumber: String, historyFlights: List<HistoricalFlight>): Result {
         val qualifiedFlights = getQualifiedHistoryFlights(historyFlights)
@@ -128,10 +128,9 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
     }
 
     /**
-     * Applies the schedule-delay qualification rule used after repository filtering.
-     *
-     * Early arrivals are always accepted. Only late arrivals beyond [EsttCalculationConfig.maxScheduleDeviation]
-     * minutes are rejected (inclusive at the threshold).
+     * 应用计划落地偏差规则：早到始终保留，晚到在阈值内（含等于）保留，超过阈值剔除。
+     * Applies the schedule-deviation rule: early arrivals are always accepted, late arrivals are accepted
+     * through the inclusive threshold, and later arrivals are rejected.
      */
     private fun getQualifiedHistoryFlights(historyFlights: List<HistoricalFlight>): List<HistoricalFlight> =
         historyFlights.filter { isScheduleDeviationAcceptable(it.scheduledTime, it.actualTime) }
@@ -142,9 +141,9 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
     }
 
     /**
-     * Returns the integer median of qualified flying durations, or `0` when empty.
-     *
-     * For an even number of values, returns the integer average of the two middle elements.
+     * 返回合格样本飞行时长的整数中位数；偶数样本取中间两值的整数平均。
+     * Returns the integer median of qualified flying durations; for even counts, uses the integer average
+     * of the two middle values.
      */
     private fun medianFlyingTime(qualifiedFlights: List<HistoricalFlight>): Long {
         val values = qualifiedFlights

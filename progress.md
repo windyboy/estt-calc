@@ -385,3 +385,43 @@ Results:
 - No Kotlin source, tests, README, docs, Gradle files, SQL, configuration, dependencies, routes, DTOs, or behavior were modified.
 
 Next phase is Phase 3: Restore/improve bilingual KDoc and inline docs.
+
+
+### Phase 3 bilingual KDoc and inline docs completed
+
+Executed Phase 3.
+
+Source comment files updated:
+
+- `src/main/kotlin/com/gzzn/airport/config/EsttCalculationConfig.kt`
+- `src/main/kotlin/com/gzzn/airport/model/FlyingTimeResponse.kt`
+- `src/main/kotlin/com/gzzn/airport/model/OperationDays.kt`
+- `src/main/kotlin/com/gzzn/airport/model/PaginatedHistoryResponse.kt`
+- `src/main/kotlin/com/gzzn/airport/repository/HistoryFlightRepository.kt`
+- `src/main/kotlin/com/gzzn/airport/repository/SeasonRepository.kt`
+- `src/main/kotlin/com/gzzn/airport/service/EsttService.kt`
+- `src/main/kotlin/com/gzzn/airport/service/calculator/FlyingTimeCalculator.kt`
+- `src/main/kotlin/com/gzzn/airport/service/history/HistoryFlightProvider.kt`
+
+Important correction during the phase:
+
+- User requested not to include literal `中文：` / `English:` labels.
+- Removed those labels from source comments and updated `task_plan.md` preferred style accordingly. Comments now keep Chinese text first and English text second without labels.
+
+Verification commands run:
+
+```bash
+rg -n "中文：|English:" src/main/kotlin src/test/kotlin || true
+git diff --check
+./gradlew spotlessCheck
+```
+
+Results:
+
+- No `中文：` / `English:` labels remain in source/test comments.
+- `git diff --check` passed.
+- First `./gradlew spotlessCheck` failed because the sandbox could not write the Gradle wrapper lock under `~/.gradle`; reran with escalation as required.
+- Escalated `./gradlew spotlessCheck` passed.
+- No executable logic, tests, README, docs, Gradle files, SQL, configuration, dependencies, routes, DTO fields, or intended behavior were changed.
+
+Next phase is Phase 4: Characterization tests for risky behavior.

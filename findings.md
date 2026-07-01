@@ -271,3 +271,22 @@ These should be preserved and not overwritten without user approval.
   - Metric names/tags and source mapping (`EstimateSource.SEASONAL` -> `schedule`).
   - Date parsing and operation-day matching semantics.
   - History filter ordering only if logs/tests depend on diagnostics; boolean outcome must remain identical.
+
+
+## Phase 3 execution findings: bilingual KDoc and inline docs
+
+- Phase 3 added or improved bilingual source comments only; no executable logic was intentionally changed.
+- Per user correction, comments now use Chinese-first and English-second content without literal labels such as `中文：` or `English:`. The plan's preferred style was updated accordingly.
+- Bilingual comments were added/improved in:
+  - `EsttService.kt`: orchestration role, strict date parsing, operation-day matching, seasonal prefilter/revalidation, no-seasonal empty history behavior, paginated history semantics, calculation MDC/timer lifecycle, success metric source tags, and no-estimate response mapping.
+  - `HistoryFlightProvider.kt`: provider responsibility, target-date exclusion, filtered pagination semantics, `hasMore` visibility, business sample gates, and strict flying-time tolerance.
+  - `FlyingTimeCalculator.kt`: calculator responsibility, internal result role, history/seasonal/none decision rules, schedule deviation rule, and integer median rule.
+  - `OperationDays.kt`: digit-wise operation-day encoding and invalid/duplicate character behavior.
+  - `EsttCalculationConfig.kt`: centralized fail-fast configuration purpose.
+  - `HistoryFlightRepository.kt` and `SeasonRepository.kt`: SQL/data-source assumptions and service-layer validation responsibilities.
+  - `FlyingTimeResponse.kt` and `PaginatedHistoryResponse.kt`: externally visible response semantics.
+- Pre-existing uncommitted changes in `InvalidFlightDateException.kt`, `InvalidFlightDateExceptionHandler.kt`, `FlyingTimeCalculator.kt` removal of `ensureValidSeasonalFlight`, and `GlobalExceptionHandlerTest.kt` remain mixed in the working tree relative to HEAD. Phase 3 did not intentionally alter their executable behavior.
+- Verification:
+  - `git diff --check` passed.
+  - Initial non-escalated `./gradlew spotlessCheck` failed due sandbox denial on `~/.gradle` wrapper lock.
+  - Escalated `./gradlew spotlessCheck` passed.
