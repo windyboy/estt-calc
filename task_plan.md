@@ -57,7 +57,7 @@ Useful focused commands:
 | Phase 2: Low-risk documentation improvements | complete | README quick start added and `docs/development.md` created with workflow, structure, configuration, troubleshooting, and limitations. |
 | Phase 3: Characterization tests | complete | Added characterization tests for schedule-deviation boundaries, integer median behavior, and flying-time tolerance filtering. |
 | Phase 4: Low-risk Kotlin simplification | complete | Simplified private history-window/filtering helpers in `HistoryFlightProvider` while preserving behavior. |
-| Phase 5: Split oversized classes/functions | pending | Preserve public API and behavior. |
+| Phase 5: Split oversized classes/functions | complete | Extracted calculation input validation from `EsttService` into an internal helper while preserving public API and behavior. |
 | Phase 6: Final verification | pending | Full checks and diff review. |
 
 ### Phase 0: Baseline verification
@@ -302,7 +302,15 @@ Verification completed successfully with focused history-provider tests and the 
 
 ### Phase 5: Split oversized classes/functions
 
-**Status:** pending
+**Status:** complete
+
+Completed on 2026-07-01 with a minimal cohesive split:
+
+- Added internal `EsttInputValidator` to hold calculation input validation rules previously embedded in `EsttService`.
+- Updated private `EsttService.validateInputs(...)` to delegate to the new helper.
+- Preserved existing validation messages and public service/controller APIs.
+
+Verification completed successfully with focused service tests, full test suite, and `./gradlew check`.
 
 1. **Goal**
    - Split cohesive logic from oversized classes/functions into smaller files/classes while preserving public API and behavior.

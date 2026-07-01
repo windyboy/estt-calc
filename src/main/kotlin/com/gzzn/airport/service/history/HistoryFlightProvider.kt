@@ -154,11 +154,10 @@ class HistoryFlightProvider(
 
     private data class HistoryWindow(val startDate: LocalDate, val endDate: LocalDate)
 
-    private fun historyWindow(seasonalFlight: SeasonalFlight, flightDate: LocalDate): HistoryWindow =
-        HistoryWindow(
-            startDate = calculateHistoryStartDate(seasonalFlight.seasonStart),
-            endDate = flightDate.minusDays(1),
-        )
+    private fun historyWindow(seasonalFlight: SeasonalFlight, flightDate: LocalDate): HistoryWindow = HistoryWindow(
+        startDate = calculateHistoryStartDate(seasonalFlight.seasonStart),
+        endDate = flightDate.minusDays(1),
+    )
 
     private fun calculateHistoryStartDate(seasonStart: LocalDate): LocalDate = seasonStart.minusDays(config.historyStartOffsetDays)
 

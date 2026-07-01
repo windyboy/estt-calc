@@ -202,3 +202,48 @@ Results:
 - Full `./gradlew test` passed.
 
 Updated `task_plan.md` to mark Phase 4 complete. Phases 5-6 remain pending.
+
+### Phase 5 split oversized classes/functions completed
+
+Created commit for the previous phase first:
+
+- `4675ffb Simplify history flight filtering`
+
+Then executed Phase 5 with a minimal cohesive split.
+
+Changed files in this phase:
+
+- `src/main/kotlin/com/gzzn/airport/service/EsttInputValidator.kt`
+- `src/main/kotlin/com/gzzn/airport/service/EsttService.kt`
+- `task_plan.md`
+- `progress.md`
+
+Split performed:
+
+- Extracted calculation input validation from `EsttService` into internal `EsttInputValidator`.
+- Kept `EsttService.validateInputs(...)` private and delegated to the new helper.
+- Preserved existing validation error messages and date boundary checks.
+
+Behavior preservation notes:
+
+- No public APIs changed.
+- No endpoint paths, response fields, messages, cache names, metric names/tags, repository SQL, dependencies, or Gradle configuration changed.
+- Existing unrelated uncommitted changes were left untouched.
+
+Verification commands run:
+
+```bash
+./gradlew test --tests com.gzzn.airport.service.EsttServiceTest --tests com.gzzn.airport.service.EsttServiceValidationAndMatchingTest --tests com.gzzn.airport.service.EsttServiceErrorTest
+./gradlew test
+./gradlew check
+```
+
+Results:
+
+- Initial non-escalated focused test attempt failed because the sandbox could not write the Gradle wrapper lock file under `~/.gradle`; reran with escalation as required.
+- Focused service tests passed.
+- Full `./gradlew test` passed.
+- First `./gradlew check` failed on Spotless formatting for `HistoryFlightProvider.kt`; applied the exact formatting shape shown by Spotless manually.
+- Rerun `./gradlew check` passed.
+
+Updated `task_plan.md` to mark Phase 5 complete. Phase 6 remains pending.
