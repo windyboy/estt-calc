@@ -165,3 +165,40 @@ Results:
 - Full `./gradlew test` passed.
 
 Updated `task_plan.md` to mark Phase 3 complete. Phases 4-6 remain pending.
+
+### Phase 4 low-risk Kotlin simplification completed
+
+Executed the next phase: Phase 4. Changes were limited to a low-risk private refactor in history filtering.
+
+Changed files in this phase:
+
+- `src/main/kotlin/com/gzzn/airport/service/history/HistoryFlightProvider.kt`
+- `task_plan.md`
+- `progress.md`
+
+Simplifications made:
+
+- Extracted private `HistoryWindow` and `historyWindow(...)` to avoid duplicated history start/end date setup in list and paginated history paths.
+- Renamed private predicate `isHistoryFlight` to `isEligibleHistoryFlight` to better describe its filtering role.
+- Rewrote nullable seasonal flying-time tolerance check as a single expression while preserving the existing exclusive threshold and null-skips-filter behavior.
+
+Behavior preservation notes:
+
+- No public APIs changed.
+- No endpoint paths, response fields, messages, cache names, metric names/tags, repository SQL, dependencies, or Gradle configuration changed.
+- Existing uncommitted changes in other source/test files were left untouched.
+
+Verification commands run:
+
+```bash
+./gradlew test --tests com.gzzn.airport.service.history.HistoryFlightProviderTest
+./gradlew test
+```
+
+Results:
+
+- Initial non-escalated focused test attempt failed because the sandbox could not write the Gradle wrapper lock file under `~/.gradle`; reran with escalation as required.
+- Focused `HistoryFlightProviderTest` passed.
+- Full `./gradlew test` passed.
+
+Updated `task_plan.md` to mark Phase 4 complete. Phases 5-6 remain pending.

@@ -36,22 +36,21 @@ class HistoryFlightProvider(
      * in its own sample.
      */
     fun getHistoryFlights(seasonalFlight: SeasonalFlight, flightDate: LocalDate): List<HistoricalFlight> {
-        val seasonStart = calculateHistoryStartDate(seasonalFlight.seasonStart)
-        val historyEndDate = flightDate.minusDays(1)
+        val window = historyWindow(seasonalFlight, flightDate)
         log.debug(
             "Querying historical flights for {} from {} to {} (target {} excluded)",
             seasonalFlight.flightNumber,
-            seasonStart,
-            historyEndDate,
+            window.startDate,
+            window.endDate,
             flightDate,
         )
         val historyFlights = historyFlightRepository.getArrivalFlight(
             seasonalFlight.flightNumber,
-            seasonStart,
-            historyEndDate,
+            window.startDate,
+            window.endDate,
             config.maxHistoryRows,
         )
-        val filtered = historyFlights.filter { isHistoryFlight(seasonalFlight, it) }
+        val filtered = historyFlights.filter { isEligibleHistoryFlight(seasonalFlight, it) }
         log.debug(
             "Retrieved {} historical flights, filtered to {} valid flights",
             historyFlights.size,
@@ -61,8 +60,7 @@ class HistoryFlightProvider(
     }
 
     fun getPaginatedHistory(seasonalFlight: SeasonalFlight, flightDate: LocalDate, offset: Int, limit: Int): PaginatedHistoryResponse {
-        val seasonStart = calculateHistoryStartDate(seasonalFlight.seasonStart)
-        val historyEndDate = flightDate.minusDays(1)
+        val window = historyWindow(seasonalFlight, flightDate)
         val items = mutableListOf<HistoricalFlight>()
         var totalFiltered = 0
         var observedMore = false
@@ -74,8 +72,8 @@ class HistoryFlightProvider(
             val fetchSize = minOf(chunkSize, config.maxHistoryRows - rawOffset)
             val batch = historyFlightRepository.getArrivalFlightPage(
                 seasonalFlight.flightNumber,
-                seasonStart,
-                historyEndDate,
+                window.startDate,
+                window.endDate,
                 rawOffset,
                 fetchSize,
             )
@@ -85,7 +83,7 @@ class HistoryFlightProvider(
 
             rawOffset += batch.size
 
-            val filteredBatch = batch.filter { isHistoryFlight(seasonalFlight, it) }
+            val filteredBatch = batch.filter { isEligibleHistoryFlight(seasonalFlight, it) }
             for (flight in filteredBatch) {
                 val currentIndex = totalFiltered
                 totalFiltered++
@@ -154,6 +152,14 @@ class HistoryFlightProvider(
         meterRegistry.summary("estt.history.pagination.offset").record(offset.toDouble())
     }
 
+    private data class HistoryWindow(val startDate: LocalDate, val endDate: LocalDate)
+
+    private fun historyWindow(seasonalFlight: SeasonalFlight, flightDate: LocalDate): HistoryWindow =
+        HistoryWindow(
+            startDate = calculateHistoryStartDate(seasonalFlight.seasonStart),
+            endDate = flightDate.minusDays(1),
+        )
+
     private fun calculateHistoryStartDate(seasonStart: LocalDate): LocalDate = seasonStart.minusDays(config.historyStartOffsetDays)
 
     /**
@@ -162,7 +168,7 @@ class HistoryFlightProvider(
      * Flying-time tolerance is exclusive at [EsttCalculationConfig.maxFlyingTimeDeviation].
      * When seasonal flying time is not configured, the tolerance check is skipped.
      */
-    private fun isHistoryFlight(seasonalFlight: SeasonalFlight, historyFlight: HistoricalFlight): Boolean {
+    private fun isEligibleHistoryFlight(seasonalFlight: SeasonalFlight, historyFlight: HistoricalFlight): Boolean {
         val operationDay = historyFlight.flightDate.dayOfWeek.value
         val actualFlyTime = calculateDurationMinutes(historyFlight.previousDepartureTime, historyFlight.actualTime)
 
@@ -185,12 +191,8 @@ class HistoryFlightProvider(
         return result
     }
 
-    private fun isFlyingTimeWithinSeasonalTolerance(actualFlyTime: Long, seasonalFlyTime: Long?): Boolean {
-        if (seasonalFlyTime == null) {
-            return true
-        }
-        return abs(actualFlyTime - seasonalFlyTime) < config.maxFlyingTimeDeviation
-    }
+    private fun isFlyingTimeWithinSeasonalTolerance(actualFlyTime: Long, seasonalFlyTime: Long?): Boolean =
+        seasonalFlyTime?.let { abs(actualFlyTime - it) < config.maxFlyingTimeDeviation } ?: true
 
     private fun calculateDurationMinutes(startTime: LocalDateTime, endTime: LocalDateTime): Long =
         Duration.between(startTime, endTime).toMinutes()

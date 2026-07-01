@@ -56,7 +56,7 @@ Useful focused commands:
 | Phase 1: Documentation inventory | complete | Documentation inventory completed: README inspected, original `docs/` absence recorded, and documentation gaps captured in `findings.md`. |
 | Phase 2: Low-risk documentation improvements | complete | README quick start added and `docs/development.md` created with workflow, structure, configuration, troubleshooting, and limitations. |
 | Phase 3: Characterization tests | complete | Added characterization tests for schedule-deviation boundaries, integer median behavior, and flying-time tolerance filtering. |
-| Phase 4: Low-risk Kotlin simplification | pending | Private/helper-level simplification only. |
+| Phase 4: Low-risk Kotlin simplification | complete | Simplified private history-window/filtering helpers in `HistoryFlightProvider` while preserving behavior. |
 | Phase 5: Split oversized classes/functions | pending | Preserve public API and behavior. |
 | Phase 6: Final verification | pending | Full checks and diff review. |
 
@@ -250,7 +250,15 @@ Verification completed successfully with focused tests and the full test suite.
 
 ### Phase 4: Low-risk Kotlin simplification
 
-**Status:** pending
+**Status:** complete
+
+Completed on 2026-07-01. Low-risk private simplification only:
+
+- Extracted a private `HistoryWindow` helper in `HistoryFlightProvider` to remove duplicated start/end window setup.
+- Renamed the private history predicate from `isHistoryFlight` to `isEligibleHistoryFlight` for clearer intent.
+- Simplified nullable seasonal flying-time tolerance logic without changing threshold behavior.
+
+Verification completed successfully with focused history-provider tests and the full test suite.
 
 1. **Goal**
    - Simplify implementation while preserving behavior and public API.
