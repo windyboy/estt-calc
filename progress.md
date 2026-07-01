@@ -585,3 +585,14 @@ Phase 11 — final verification:
 - `./gradlew spotlessApply check` passed.
 
 Second refactoring pass is complete.
+
+### Simplicity rollback (2026-06-29)
+
+After review, inlined marginal Phase 8–9 helpers:
+
+- `EsttController`: removed `databaseErrorResponse` / `calculationErrorResponse` wrappers; kept `parseFlightRequest`.
+- `FlyingTimeCalculator`: merged branch helpers back into `calculate()`; trimmed verbose KDoc.
+
+Planning files updated to archive refactor work and stop further phases.
+
+Verification: `./gradlew check` passed.

@@ -373,3 +373,30 @@ These should be preserved and not overwritten without user approval.
 - `HistoryFlightProvider.kt`: 168 lines — refactored.
 - `FlyingTimeCalculator.kt`: ~142 lines — Phase 9 target.
 - Uncommitted `InvalidFlightDateExceptionHandler` changes HTTP 400 body from `Map` to `ErrorResponse`; reconcile in Phase 10 before treating verification as final.
+
+# Findings: Simplicity review (2026-06-29)
+
+## Conclusion
+
+The refactor passes improved correctness and test coverage, but **did not reduce total code size**. Core service layer grew from ~825 to ~1115 lines across main files. `EsttService` (~436 lines) remains the primary complexity hotspot.
+
+## Keep (worth the indirection)
+
+- `EsttInputValidator` — validation out of orchestrator
+- `HistoryPaginationScanner` — pagination scan separated from business filtering
+- `EsttController.parseFlightRequest` — DRY across three date-taking endpoints
+
+## Rolled back or avoid re-adding
+
+- One-line error-response wrappers (`databaseErrorResponse`, `calculationErrorResponse`)
+- Calculator branch helper methods that only moved code without deleting duplication
+- Further private helper extraction unless a whole class/file can be removed
+
+## Comment policy going forward
+
+- Keep bilingual notes only on non-obvious domain rules (operation-day matching, history window, deviation thresholds, median rule)
+- Do not expand comments that restate what the code already says
+
+## No further action unless goal changes
+
+Stop new planning phases. Future work should **delete or merge**, not split.

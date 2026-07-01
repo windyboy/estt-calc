@@ -2,11 +2,13 @@
 
 ## Scope
 
-Second-pass plan for deeper internal Kotlin refactoring and bilingual source documentation.
+Second-pass refactor is **complete and archived**. A simplicity review (2026-06-29) concluded that further structural extraction adds indirection without reducing total complexity.
 
-Phases 0–4 are complete. Phases 5–6 were partially delivered and incorrectly marked complete; Phase 7 closed prematurely. Phases 8–11 cover the remaining refactor work, uncommitted change reconciliation, and a final verification pass.
+**Keep:** `EsttInputValidator`, `HistoryPaginationScanner`, `parseFlightRequest` (real DRY wins).
 
-Planning files are updated to reflect actual delivery status before resuming implementation.
+**Stop:** new phases, new helper classes, bilingual comment expansion, refactor-for-refactor's sake.
+
+**Optional future work (only if it deletes code):** shrink `EsttService` by merging responsibilities, not by adding more files.
 
 ## Non-negotiable constraints
 
@@ -738,4 +740,4 @@ git status --short
 
 ## Current stop point
 
-Phases 0–11 complete. Second refactoring pass finished 2026-06-29.
+All phases complete. **No further refactor planned.** See simplicity review in `findings.md`.

@@ -67,7 +67,9 @@ open class EsttController(
             },
             onFailure = { e ->
                 log.error("Failed to get active season", e)
-                databaseErrorResponse(e)
+                HttpResponse.serverError(
+                    ErrorCode.DATABASE_ERROR.toErrorResponse(e.message ?: "Database access failed"),
+                )
             },
         )
     }
@@ -109,7 +111,9 @@ open class EsttController(
             },
             onFailure = { e ->
                 log.error("Failed to get seasonal flight for ${request.normalizedFlightNumber}", e)
-                databaseErrorResponse(e)
+                HttpResponse.serverError(
+                    ErrorCode.DATABASE_ERROR.toErrorResponse(e.message ?: "Database access failed"),
+                )
             },
         )
     }
@@ -164,7 +168,9 @@ open class EsttController(
             },
             onFailure = { e ->
                 log.error("Failed to get paginated history flights for ${request.normalizedFlightNumber}", e)
-                databaseErrorResponse(e)
+                HttpResponse.serverError(
+                    ErrorCode.DATABASE_ERROR.toErrorResponse(e.message ?: "Database access failed"),
+                )
             },
         )
     }
@@ -203,7 +209,9 @@ open class EsttController(
             },
             onFailure = { e ->
                 log.error("Calculation failed for ${request.normalizedFlightNumber}", e)
-                calculationErrorResponse(e)
+                HttpResponse.serverError(
+                    ErrorCode.CALCULATION_ERROR.toErrorResponse(e.message ?: "Calculation failed"),
+                )
             },
         )
     }
@@ -232,12 +240,4 @@ open class EsttController(
             "Invalid flight number format: $flightNumber. Expected format: AA1234 (2 letters + 3-4 digits)"
         }
     }
-
-    private fun databaseErrorResponse(e: Throwable): HttpResponse<ErrorResponse> = HttpResponse.serverError(
-        ErrorCode.DATABASE_ERROR.toErrorResponse(e.message ?: "Database access failed"),
-    )
-
-    private fun calculationErrorResponse(e: Throwable): HttpResponse<ErrorResponse> = HttpResponse.serverError(
-        ErrorCode.CALCULATION_ERROR.toErrorResponse(e.message ?: "Calculation failed"),
-    )
 }
