@@ -1,281 +1,99 @@
-# ESTT Kotlin Simplification Plan v3
+# ESTT Algorithm Correction Plan
 
 ## Goal
 
-Reduce **total code volume and cognitive load** without changing external behavior.
+Fix identified algorithm weaknesses that can cause **false “insufficient history”** and **non-deterministic seasonal lookup**, without changing the public HTTP contract (`source`, `flyingTime`, `sampleSize`, `confidence` field names).
 
-This plan replaces the archived second refactor pass. Success is measured by **fewer lines and/or fewer files**, not by new helpers or phases of extraction.
+## Current Phase
+
+All phases complete (P2/P3/P4 deferred items documented in `findings.md`)
 
 ## Success metrics
 
-| Metric | Baseline (2026-06-29) | Target |
-|--------|------------------------|--------|
-| `EsttService.kt` lines | 436 | **≤ 340** |
-| Main `src/main/kotlin` lines (excl. generated) | ~1,800 | **−10% or more** |
-| Production Kotlin files | 25 | **≤ 24** (merge, do not split) |
+| Metric | Baseline | Target |
+|--------|----------|--------|
+| False seasonal/none fallback when ≥20 qualified rows exist in window | Unknown (no metric) | Measurable → trending to 0 on replay set |
+| Seasonal row selection | Non-deterministic if multiple DB rows | Deterministic rule + test |
 | `./gradlew check` | pass | pass |
-
-## Principles
-
-1. **Delete > merge > inline > keep** — if a change does not remove lines or files, skip it.
-2. **No new production files** unless two or more existing files are removed or merged.
-3. **No new private helpers** unless they replace duplicated blocks of **≥ 15 lines** each in **≥ 2 places**.
-4. **Comments:** keep only non-obvious domain rules; remove bilingual blocks that restate the code.
-5. **Behavior frozen:** public API, HTTP routes, response fields, error messages, metrics tags, SQL, cache names unchanged.
-6. **Tests stay green** after every phase; run focused tests for touched packages before `./gradlew check`.
-
-## Do not repeat (lessons from refactor pass)
-
-- Multi-phase “characterization → extract → split” without net line reduction
-- Bilingual KDoc on every method
-- Thin one-line wrappers (`databaseErrorResponse`, branch `historyResult`, etc.)
-- Marking phases complete when only code was moved
-
-## Baseline hotspots
-
-| File | Lines | Issue |
-|------|-------|-------|
-| `EsttService.kt` | 436 | Main target: duplicate history paths, verbose comments, ceremony |
-| `EsttController.kt` | 243 | Mostly OpenAPI annotations; low simplification ROI |
-| `HistoryFlightProvider.kt` | 168 | Already reasonable; keep split with scanner |
-| `HistoryPaginationScanner.kt` | 79 | Keep — real separation |
-| `FlyingTimeCalculator.kt` | 128 | Already rolled back; leave as-is |
-| `EsttInputValidator.kt` | 21 | Candidate to merge back and delete file |
-
-## Out of scope (needs product/API decision)
-
-- Removing deprecated `FlyingTimeResponse.history` / `.seasonal` booleans
-- Dropping OpenAPI annotation blocks from controller
-- Enabling skipped integration tests (`xdescribe`)
-
----
-
-## Phase overview
-
-| Phase | Status | Risk | Expected outcome |
-|-------|--------|------|------------------|
-| Phase 0: Baseline and scope lock | complete | Low | Metrics recorded; v3 plan approved |
-| Phase 1: Trim comment noise | complete | Low | −80~120 lines across service/models/repos |
-| Phase 2: Deduplicate EsttService history flow | complete | Medium | Remove redundant history fetch path |
-| Phase 3: Slim EsttService ceremony | complete | Low-Medium | Shorter init/logging/Result wrappers |
-| Phase 4: Merge EsttInputValidator | complete | Low | Delete 1 file; validation stays identical |
-| Phase 5: Verify and measure | complete | Low | `./gradlew check`; record before/after counts |
-
----
-
-### Phase 0: Baseline and scope lock
-
-**Status:** complete
-
-**Goal**
-
-- Record baseline line counts and lock v3 simplification scope.
-- Archive previous refactor plan mentally; do not resume Phases 8–11 style extraction.
-
-**Baseline recorded**
-
-- HEAD: `4bc60cb Simplify by inlining marginal refactor helpers.`
-- `EsttService.kt`: 436 lines
-- Total main Kotlin: ~1,800 lines (25 files)
-- Tests: 15 suites; `./gradlew check` passing at last commit
-
-**Verification**
-
-```bash
-wc -l src/main/kotlin/com/gzzn/airport/service/EsttService.kt
-find src/main/kotlin -name '*.kt' | wc -l
-./gradlew check
-```
-
----
-
-### Phase 1: Trim comment noise
-
-**Status:** complete
-
-**Goal**
-
-- Remove comments that restate code; keep only domain-critical notes.
-
-**Keep comments on (short, optional bilingual one-liner max)**
-
-- `yyMMdd` strict parsing and `2000..2099` mapping
-- Operation-day digit-wise matching (not substring)
-- History window excludes target date
-- Flying-time tolerance strict `<`; schedule deviation inclusive `<=`
-- Median integer rule for even counts
-- SQL `INSTR` as prefilter only
-
-**Trim heavily**
-
-- `EsttService.kt` class-level and method-level bilingual KDoc blocks
-- `HistoryFlightProvider.kt`, repositories, model field essays (`FlyingTimeResponse` property docs)
-- Obvious inline comments (`// Validate pagination`, MDC step-by-step narration)
-
-**Files**
-
-- `EsttService.kt`
-- `HistoryFlightProvider.kt`
-- `HistoryFlightRepository.kt`, `SeasonRepository.kt`
-- `FlyingTimeResponse.kt`, `PaginatedHistoryResponse.kt`, `OperationDays.kt`
-- `EsttCalculationConfig.kt`
-
-**Forbidden**
-
-- Logic changes, signature changes, message changes
-
-**Verification**
-
-```bash
-git diff --stat
-./gradlew spotlessCheck
-./gradlew test --tests com.gzzn.airport.service.EsttServiceTest
-```
-
-**Target:** −80~120 lines
-
----
-
-### Phase 2: Deduplicate EsttService history flow
-
-**Status:** complete
-
-**Goal**
-
-- Remove parallel history-loading paths that do the same work with different wrappers.
-
-**Current duplication**
-
-- `cachedHistoryFlights` → resolves seasonal, calls `historyFlightProvider.getHistoryFlights`
-- `getHistoryFlightsWithSeasonFlight` → same provider call when seasonal is non-null, extra `runCatching` + warn path
-- `calculateWithSeasonalFlight` already holds non-null `SeasonalFlight` but goes through the second path
-
-**Planned change**
-
-- In `calculateWithSeasonalFlight`, call `historyFlightProvider.getHistoryFlights(seasonalFlight, flightDate)` directly inside existing `Result` chain (preserve failure propagation and messages).
-- Delete `getHistoryFlightsWithSeasonFlight` if no other callers remain.
-- Do **not** change cache keys or public method behavior for `getHistoryFlights` / `cachedHistoryFlights`.
-
-**Files**
-
-- `EsttService.kt`
-- `EsttServiceTest.kt`, `EsttServiceErrorTest.kt` (if needed)
-
-**Risk**
-
-- Medium: calculation pipeline error handling must stay identical.
-
-**Verification**
-
-```bash
-./gradlew test --tests com.gzzn.airport.service.EsttServiceTest --tests com.gzzn.airport.service.EsttServiceErrorTest --tests com.gzzn.airport.service.EsttServiceValidationAndMatchingTest
-```
-
-**Target:** −25~40 lines in `EsttService.kt`
-
----
-
-### Phase 3: Slim EsttService ceremony
-
-**Status:** complete
-
-**Goal**
-
-- Reduce init/log/Result boilerplate without new abstractions.
-
-**Candidates**
-
-- Replace 7-line `init` config dump with **one** structured info log (or remove if redundant with Micronaut startup logs).
-- Collapse repeated `runCatching { ... }.onFailure { log.error("...", e) }` only if a **single** private inline helper saves net lines (must be ≥ 15 lines saved total; otherwise skip).
-- Inline `getOperationDay` if only used once.
-- Merge `buildCalculatedResponse` + `buildNoEstimateResponse` only if net shorter (do not split further).
-
-**Forbidden**
-
-- New files, new public methods, changed log message text
-
-**Verification**
-
-```bash
-./gradlew test --tests com.gzzn.airport.service.EsttServiceTest
-./gradlew check
-```
-
-**Target:** −20~35 lines in `EsttService.kt`
-
----
-
-### Phase 4: Merge EsttInputValidator
-
-**Status:** complete
-
-**Goal**
-
-- Delete `EsttInputValidator.kt` by moving its 4 `require` checks back into `EsttService` as a private function.
-
-**Why**
-
-- 21-line file for one call site adds navigation cost without meaningful separation.
-
-**Files**
-
-- Delete: `EsttInputValidator.kt`
-- Edit: `EsttService.kt`
-
-**Verification**
-
-```bash
-./gradlew test --tests com.gzzn.airport.service.EsttServiceValidationAndMatchingTest
-./gradlew check
-```
-
-**Target:** −1 file; net lines ≈ unchanged or slightly lower
-
----
-
-### Phase 5: Verify and measure
-
-**Status:** complete
-
-**Goal**
-
-- Confirm success metrics; update planning files; stop.
-
-**Verification**
-
-```bash
-git diff --check
-./gradlew check
-wc -l src/main/kotlin/com/gzzn/airport/service/EsttService.kt
-find src/main/kotlin -name '*.kt' | wc -l
-```
-
-**Deliverables**
-
-- Update `findings.md` with before/after counts
-- Update `progress.md` with phase log
-- Mark all v3 phases complete in this file
-
----
+| `docs/algorithm.md` | Audited 2026-07-01 | Updated for any behavior change |
+
+## Problem summary (from audit)
+
+| ID | Problem | Priority | In scope |
+|----|---------|----------|----------|
+| P0 | `maxHistoryRows` caps **raw** DB rows before filtering; qualified samples beyond cap are invisible | **P0** | Yes |
+| P1 | `getSeasonalArrivalFlight` has no `ORDER BY`; multiple rows → undefined choice | **P1** | Yes |
+| P2 | History window starts at `seasonStart − offset`, may include pre-season data | P2 | **Deferred** — needs business sign-off |
+| P3 | `confidence: HIGH` ignores dispersion | P3 | **Deferred** — API semantics, not calculation bug |
+| P4 | No flying-time outlier bound when seasonal `flyingTime` is null | P4 | **Deferred** — needs ops bounds |
+
+## Phases
+
+### Phase 0: Baseline & discovery
+
+- [x] Algorithm audit vs source (`docs/algorithm.md`, service/history/calculator)
+- [x] Document problems and proposed fixes in `findings.md`
+- [x] Run `./gradlew test` — baseline pass after `clean` (see `progress.md`)
+- **Status:** complete
+
+### Phase 1: Observability (P0-C, zero behavior change)
+
+- [x] Add Micrometer metrics for history scan: `raw_rows`, `filtered_rows`, `qualified_rows`, `hit_scan_limit`, `qualified_sufficient`
+- [x] Log at INFO when `hit_scan_limit=true` and `qualified < minHistoryFlight`
+- [x] Unit test: metrics incremented on representative paths
+- **Status:** complete
+
+### Phase 2: Scan-until-qualified (P0-A, core fix)
+
+- [x] Refactor calculation history load: page through DB until `qualified ≥ minHistoryFlight` **or** scan budget exhausted
+- [x] Reuse `isEligibleHistoryFlight` + `FlyingTimeCalculator` schedule filter consistently
+- [x] Define `maxScanBudget` — `maxHistoryRows` is initial budget; extend through window when qualified < min
+- [x] Regression tests:
+  - qualified samples only appear after raw row budget → still returns eligible flights (`HistoryFlightProviderTest`)
+  - budget exhausted with <20 qualified → hitScanLimit true
+- [x] Update `docs/algorithm.md` row-cap section
+- **Status:** complete
+
+### Phase 3: Deterministic seasonal lookup (P1)
+
+- [x] Add `ORDER BY` + `FETCH FIRST 1 ROW ONLY` to `SeasonRepository.getSeasonalArrivalFlight`
+- [x] Proposed order: `seasonal_flight.START_DATE DESC`, then `FLIGHT_NUMBER`
+- [ ] Test: multiple mocked/repository rows → same flight selected (deferred — SQL-level; service mocks return single row)
+- [x] Document in `docs/algorithm.md`
+- **Status:** complete
+
+### Phase 4: Verification & docs
+
+- [x] Full `./gradlew check`
+- [x] Review metrics in test profile
+- [x] Update `CHANGELOG.md` (algorithm section)
+- [x] Mark P2/P3/P4 as future work in `findings.md` if still deferred
+- **Status:** complete
+
+## Key questions
+
+1. **P2 window:** Should history ever include dates before `seasonStart`? *(Default: defer; keep current behavior until product confirms.)*
+2. **Scan budget:** Is it acceptable to increase worst-case DB reads for calculation? *(Mitigate with page size + existing `maxHistoryRows` budget.)*
+3. **Pagination API:** Should `/estt/history` use the same scan-until-qualified logic, or remain “best effort within cap”? *(Default: calculation path only in Phase 2; pagination unchanged unless tests prove inconsistency.)*
+
+## Decisions made
+
+| Decision | Rationale |
+|----------|-----------|
+| Phased delivery: metrics before behavior change | Prove problem in prod-like data; safe rollback |
+| Phase 2 changes calculation path only | Minimize API surface; pagination already documents bounded scan |
+| P2/P3/P4 deferred | Require business input or are API enhancements, not correctness bugs |
+| Archive prior `task_plan.md` / `findings.md` / `progress.md` | v4 simplification complete; new plan owns algorithm work |
+| Keep median + filter rules unchanged | Core estimator is sound; fix sample **selection** not statistics |
 
 ## Errors encountered
 
 | Error | Attempt | Resolution |
 |-------|---------|------------|
-| Prior refactor plan grew code ~825→1115 lines | v2 pass | Archived; v3 plan uses deletion metrics |
-| Session catchup home path missing | 1 | Use `.codex/skills/planning-with-files/scripts/session-catchup.py` |
+| — | — | — |
 
-## Current stop point
+## Notes
 
-**All v3 phases complete.** `./gradlew check` passed 2026-07-01.
-
-## Final metrics (v3)
-
-| Metric | Baseline | After | Target | Met |
-|--------|----------|-------|--------|-----|
-| `EsttService.kt` lines | 436 | 342 | ≤ 340 | ~yes (−2) |
-| Main `src/main/kotlin` lines | ~1,800 | 1,477 | −10% or more | yes (−18%) |
-| Production `.kt` files | 25 | 24 | ≤ 24 | yes |
-| `./gradlew check` | pass | pass | pass | yes |
-
-Phase 1 note: user chose compromise — short bilingual comments on domain rules only; model field KDoc not restored.
+- Prior plan archived at `plans/archive/simplification-v4/`.
+- Historical backlogs archived at `plans/archive/`.
+- Re-read this file before Phase 2 implementation (behavior change).

@@ -56,7 +56,10 @@ class FlyingTimeCalculatorTest :
                 result.confidence shouldBe Confidence.HIGH
                 result.sampleSize shouldBe config.minHistoryFlight
                 result.flyingTime shouldBe 96L
+                result.qualifiedCount shouldBe config.minHistoryFlight
 
+                meterRegistry.summary("estt.history.calc.scan.qualified_rows").count() shouldBe 1
+                meterRegistry.counter("estt.history.calc.scan.calls", "qualified_sufficient", "true").count() shouldBe 1.0
                 meterRegistry.counter("estt.calculation.source", "source", "history").count() shouldBe 1.0
             }
 

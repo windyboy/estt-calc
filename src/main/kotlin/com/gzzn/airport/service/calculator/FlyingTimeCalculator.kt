@@ -23,14 +23,20 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
         val flyingTime: Long?,
         val source: EstimateSource,
         val sampleSize: Int,
+        val qualifiedCount: Int,
         val confidence: Confidence,
         val message: String,
     ) {
         val historyUsed: Boolean get() = source == EstimateSource.HISTORY
     }
 
+    /** 时刻偏差过滤；供历史扫描判断合格样本是否足够。Schedule-deviation filter for scan stop conditions. */
+    fun filterByScheduleDeviation(historyFlights: List<HistoricalFlight>): List<HistoricalFlight> =
+        getQualifiedHistoryFlights(historyFlights)
+
     fun calculate(seasonalFlight: SeasonalFlight, flightNumber: String, historyFlights: List<HistoricalFlight>): Result {
         val qualifiedFlights = getQualifiedHistoryFlights(historyFlights)
+        recordQualifiedScanMetrics(qualifiedFlights.size)
         log.debug(
             "Found {} qualified history flights (minimum required: {})",
             qualifiedFlights.size,
@@ -59,6 +65,7 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
                 flyingTime = flyingTime,
                 source = EstimateSource.HISTORY,
                 sampleSize = qualifiedFlights.size,
+                qualifiedCount = qualifiedFlights.size,
                 confidence = Confidence.HIGH,
                 message = "Calculated from ${qualifiedFlights.size} historical flights",
             )
@@ -78,6 +85,7 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
                 flyingTime = seasonalTime,
                 source = EstimateSource.SEASONAL,
                 sampleSize = 0,
+                qualifiedCount = qualifiedFlights.size,
                 confidence = Confidence.NONE,
                 message = "Using seasonal flight flying time due to insufficient historical data",
             )
@@ -93,9 +101,20 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
             flyingTime = null,
             source = EstimateSource.NONE,
             sampleSize = qualifiedFlights.size,
+            qualifiedCount = qualifiedFlights.size,
             confidence = Confidence.NONE,
             message = NoEstimateReason.INSUFFICIENT_HISTORY_NO_SEASONAL_TIME.message,
         )
+    }
+
+    private fun recordQualifiedScanMetrics(qualifiedCount: Int) {
+        meterRegistry.summary("estt.history.calc.scan.qualified_rows").record(qualifiedCount.toDouble())
+        val sufficient = qualifiedCount >= config.minHistoryFlight
+        meterRegistry.counter(
+            "estt.history.calc.scan.calls",
+            "qualified_sufficient",
+            sufficient.toString(),
+        ).increment()
     }
 
     /** 早到始终保留，晚到在阈值内（含等于）保留。Early arrivals accepted; late within threshold accepted. */

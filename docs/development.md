@@ -8,6 +8,15 @@ This guide summarizes the local Micronaut/Kotlin workflow for this service. It d
 - Gradle wrapper from this repository (`./gradlew`).
 - Oracle connection settings for running against a real database. Unit tests use the H2 test configuration in `src/test/resources/application-test.yml`.
 
+## Documentation
+
+| 文档 / Document | 内容 / Contents |
+|-----------------|-----------------|
+| [algorithm.md](algorithm.md) | 计算规则、过滤、边界（**中英双语**） |
+| [api.md](api.md) | REST 端点与响应契约（**中英双语**） |
+| [code-map.md](code-map.md) | 源码布局与领域注释位置（**中英双语**） |
+| [development.md](development.md) | 本指南 — 构建、测试、排障 |
+
 ## Common commands
 
 Run commands from the repository root.
@@ -50,7 +59,7 @@ src/main/kotlin/com/gzzn/airport/
 ├── resource/            # REST controller endpoints
 ├── service/             # Application orchestration service
 │   ├── calculator/      # Flying-time median/fallback decision rules
-│   └── history/         # History retrieval, pagination, and filtering
+│   └── history/         # History retrieval, pagination scan, and filtering
 └── util/                # Kotlin Result helper extensions
 
 src/test/kotlin/com/gzzn/airport/

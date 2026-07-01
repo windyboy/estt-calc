@@ -38,6 +38,8 @@ open class EsttService(
     companion object {
         private val log = LoggerFactory.getLogger(EsttService::class.java)
         private val YYMMDD_PATTERN = Regex("\\d{6}")
+
+        private fun <T> catching(block: () -> T, message: String): Result<T> = runCatching(block).onFailure { e -> log.error(message, e) }
     }
 
     init {
@@ -59,10 +61,7 @@ open class EsttService(
         return activeFlightSeason
     }
 
-    open fun getActiveSeason(): Result<FlightSeason?> = runCatching { cachedActiveSeason() }
-        .onFailure { e ->
-            log.error("Error getting active flight season", e)
-        }
+    open fun getActiveSeason(): Result<FlightSeason?> = catching({ cachedActiveSeason() }, "Error getting active flight season")
 
     // 严格 yyMMdd：正好六位数字，年份 00..99 映射为 2000..2099。
     // Strict yyMMdd: exactly six digits; years 00..99 map to 2000..2099.
@@ -73,18 +72,13 @@ open class EsttService(
         if (!YYMMDD_PATTERN.matches(dateString)) {
             throw InvalidFlightDateException("Invalid flight date: $dateString")
         }
-        val formatter = DateTimeFormatter.ofPattern("uuMMdd")
-            .withResolverStyle(ResolverStyle.STRICT)
+        val formatter = DateTimeFormatter.ofPattern("uuMMdd").withResolverStyle(ResolverStyle.STRICT)
         return try {
             LocalDate.parse(dateString, formatter)
         } catch (e: DateTimeParseException) {
             throw InvalidFlightDateException("Invalid flight date: $dateString", e)
         }
     }
-
-    // 运营日逐位匹配，避免子串误判（如 "1" 匹配 "12"）。
-    // Digit-wise operation-day match; avoids substring false positives (e.g. "1" in "12").
-    internal fun isOperationDayMatch(operationDays: String, dayOfWeek: Int): Boolean = OperationDays.matches(operationDays, dayOfWeek)
 
     @Cacheable("seasonal-flight")
     @CircuitBreaker(attempts = "10", delay = "500ms", reset = "60s")
@@ -97,7 +91,7 @@ open class EsttService(
         val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, operationDay.toString())
 
         val validatedFlight = seasonalFlight?.let {
-            val operationDayMatches = isOperationDayMatch(it.operationDays, operationDay)
+            val operationDayMatches = OperationDays.matches(it.operationDays, operationDay)
             val withinSeasonBounds = !flightDate.isBefore(it.seasonStart) && !flightDate.isAfter(it.seasonEnd)
 
             if (!operationDayMatches) {
@@ -108,7 +102,6 @@ open class EsttService(
                     it.operationDays,
                 )
             }
-
             if (!withinSeasonBounds) {
                 log.warn(
                     "Seasonal flight found but date {} is outside season window: start={}, end={}",
@@ -117,7 +110,6 @@ open class EsttService(
                     it.seasonEnd,
                 )
             }
-
             if (operationDayMatches && withinSeasonBounds) it else null
         }
 
@@ -125,82 +117,67 @@ open class EsttService(
         return validatedFlight
     }
 
-    open fun getSeasonalFlight(flightNumber: String, flightDate: LocalDate): Result<SeasonalFlight?> = runCatching {
-        cachedSeasonalFlight(flightNumber, flightDate)
-    }
-        .onFailure { e ->
-            log.error("Error finding seasonal flight for $flightNumber on $flightDate", e)
-        }
+    open fun getSeasonalFlight(flightNumber: String, flightDate: LocalDate): Result<SeasonalFlight?> =
+        catching({ cachedSeasonalFlight(flightNumber, flightDate) }, "Error finding seasonal flight for $flightNumber on $flightDate")
 
     @Cacheable("history-flights")
     open fun cachedHistoryFlights(flightNumber: String, flightDate: LocalDate): List<HistoricalFlight> {
-        val seasonalFlight = cachedSeasonalFlight(flightNumber, flightDate)
-        if (seasonalFlight == null) {
-            // 无航季计划时不构造历史样本。
-            // Without a seasonal schedule there is no trusted history sample.
-            return emptyList()
-        }
-        return historyFlightProvider.getHistoryFlights(seasonalFlight, flightDate)
+        val seasonalFlight = cachedSeasonalFlight(flightNumber, flightDate) ?: return emptyList()
+        // 无航季计划时不构造历史样本。
+        // Without a seasonal schedule there is no trusted history sample.
+        return historyFlightProvider.getHistoryFlights(seasonalFlight, flightDate).flights
     }
 
-    open fun getHistoryFlights(flightNumber: String, flightDate: LocalDate): Result<List<HistoricalFlight>> = runCatching {
-        cachedHistoryFlights(flightNumber, flightDate)
-    }
-        .onFailure { e ->
-            log.error("Error getting history flights for $flightNumber on $flightDate", e)
-        }
+    open fun getHistoryFlights(flightNumber: String, flightDate: LocalDate): Result<List<HistoricalFlight>> =
+        catching({ cachedHistoryFlights(flightNumber, flightDate) }, "Error getting history flights for $flightNumber on $flightDate")
 
     open fun getPaginatedHistoryFlights(
         flightNumber: String,
         flightDate: LocalDate,
         offset: Int,
         limit: Int,
-    ): Result<PaginatedHistoryResponse> {
-        return runCatching {
-            val seasonalFlight = cachedSeasonalFlight(flightNumber, flightDate)
-            if (seasonalFlight == null) {
-                return@runCatching PaginatedHistoryResponse(
-                    items = emptyList(),
-                    totalFiltered = 0,
-                    offset = offset,
-                    limit = limit,
-                    hasMore = false,
-                )
-            }
+    ): Result<PaginatedHistoryResponse> = catching({
+        val seasonalFlight = cachedSeasonalFlight(flightNumber, flightDate)
+            ?: return@catching PaginatedHistoryResponse(emptyList(), 0, offset, limit, false)
 
-            val paginated = historyFlightProvider.getPaginatedHistory(seasonalFlight, flightDate, offset, limit)
-            log.debug(
-                "Paginated history for {}: returned={}, totalFiltered={}, hasMore={}, offset={}, limit={}, capped={}",
+        val paginated = historyFlightProvider.getPaginatedHistory(seasonalFlight, flightDate, offset, limit)
+        log.debug(
+            "Paginated history for {}: returned={}, totalFiltered={}, hasMore={}, offset={}, limit={}, capped={}",
+            seasonalFlight.flightNumber,
+            paginated.items.size,
+            paginated.totalFiltered,
+            paginated.hasMore,
+            offset,
+            limit,
+            paginated.totalFiltered >= config.maxHistoryRows,
+        )
+        if (paginated.hasMore || paginated.totalFiltered >= config.maxHistoryRows) {
+            log.info(
+                "History pagination truncated for {}: hasMore={}, filtered={}, offset={}, limit={}, maxRows={}",
                 seasonalFlight.flightNumber,
-                paginated.items.size,
-                paginated.totalFiltered,
                 paginated.hasMore,
+                paginated.totalFiltered,
                 offset,
                 limit,
-                paginated.totalFiltered >= config.maxHistoryRows,
+                config.maxHistoryRows,
             )
-            if (paginated.hasMore || paginated.totalFiltered >= config.maxHistoryRows) {
-                log.info(
-                    "History pagination truncated for {}: hasMore={}, filtered={}, offset={}, limit={}, maxRows={}",
-                    seasonalFlight.flightNumber,
-                    paginated.hasMore,
-                    paginated.totalFiltered,
-                    offset,
-                    limit,
-                    config.maxHistoryRows,
-                )
-            }
-            paginated
-        }.onFailure { e ->
-            log.error("Error getting paginated history flights for $flightNumber on $flightDate", e)
         }
-    }
+        paginated
+    }, "Error getting paginated history flights for $flightNumber on $flightDate")
 
     open fun calculate(flightNumber: String, flightDate: LocalDate): Result<FlyingTimeResponse> {
         validateInputs(flightNumber, flightDate)
-        return withCalculationTelemetry(flightNumber, flightDate) {
+        MDC.put("flightNumber", flightNumber)
+        MDC.put("flightDate", flightDate.toString())
+        val timer = Timer.start(meterRegistry)
+        return try {
             log.info("Starting flying time calculation")
             fetchAndCalculate(flightNumber, flightDate)
+                .onSuccess { recordSuccessMetrics(timer, it) }
+                .onFailure { recordFailureMetrics(timer, it) }
+        } finally {
+            MDC.remove("flightNumber")
+            MDC.remove("flightDate")
         }
     }
 
@@ -216,17 +193,14 @@ open class EsttService(
     }
 
     private fun fetchAndCalculate(flightNumber: String, flightDate: LocalDate): Result<FlyingTimeResponse> =
-        getSeasonalFlight(flightNumber, flightDate)
-            .flatMap { seasonalFlight ->
-                if (seasonalFlight == null) {
-                    log.warn(NoEstimateReason.NO_SEASONAL_FLIGHT.message)
-                    Result.success(
-                        buildNoEstimateResponse(flightNumber, flightDate, NoEstimateReason.NO_SEASONAL_FLIGHT),
-                    )
-                } else {
-                    calculateWithSeasonalFlight(seasonalFlight, flightNumber, flightDate)
-                }
+        getSeasonalFlight(flightNumber, flightDate).flatMap { seasonalFlight ->
+            if (seasonalFlight == null) {
+                log.warn(NoEstimateReason.NO_SEASONAL_FLIGHT.message)
+                Result.success(buildNoEstimateResponse(flightNumber, flightDate, NoEstimateReason.NO_SEASONAL_FLIGHT))
+            } else {
+                calculateWithSeasonalFlight(seasonalFlight, flightNumber, flightDate)
             }
+        }
 
     // EstimateSource.SEASONAL 映射到指标标签 "schedule"。
     // EstimateSource.SEASONAL maps to metric tag "schedule".
@@ -236,40 +210,8 @@ open class EsttService(
             EstimateSource.SEASONAL -> "schedule"
             EstimateSource.NONE -> "none"
         }
-        timer.stop(
-            meterRegistry.timer(
-                "estt.calculation.time",
-                "source",
-                sourceTag,
-                "result",
-                "success",
-            ),
-        )
-        meterRegistry.counter(
-            "estt.calculation.success",
-            "source",
-            sourceTag,
-        ).increment()
-    }
-
-    private fun withCalculationTelemetry(
-        flightNumber: String,
-        flightDate: LocalDate,
-        block: () -> Result<FlyingTimeResponse>,
-    ): Result<FlyingTimeResponse> {
-        MDC.put("flightNumber", flightNumber)
-        MDC.put("flightDate", flightDate.toString())
-
-        val timer = Timer.start(meterRegistry)
-
-        try {
-            return block()
-                .onSuccess { response -> recordSuccessMetrics(timer, response) }
-                .onFailure { e -> recordFailureMetrics(timer, e) }
-        } finally {
-            MDC.remove("flightNumber")
-            MDC.remove("flightDate")
-        }
+        timer.stop(meterRegistry.timer("estt.calculation.time", "source", sourceTag, "result", "success"))
+        meterRegistry.counter("estt.calculation.success", "source", sourceTag).increment()
     }
 
     private fun recordFailureMetrics(timer: Timer.Sample, exception: Throwable) {
@@ -282,11 +224,7 @@ open class EsttService(
                 exception.javaClass.simpleName,
             ),
         )
-        meterRegistry.counter(
-            "estt.calculation.failure",
-            "error",
-            exception.javaClass.simpleName,
-        ).increment()
+        meterRegistry.counter("estt.calculation.failure", "error", exception.javaClass.simpleName).increment()
         log.error("Flying time calculation failed", exception)
     }
 
@@ -294,12 +232,24 @@ open class EsttService(
         seasonalFlight: SeasonalFlight,
         flightNumber: String,
         flightDate: LocalDate,
-    ): Result<FlyingTimeResponse> = runCatching {
+    ): Result<FlyingTimeResponse> = catching({
         historyFlightProvider.getHistoryFlights(seasonalFlight, flightDate)
-    }.onFailure { e ->
-        log.error("Error getting history flights with seasonal flight for $flightDate", e)
-    }.map { historyFlights ->
-        val result = flyingTimeCalculator.calculate(seasonalFlight, flightNumber, historyFlights)
+    }, "Error getting history flights with seasonal flight for $flightDate").map { scan ->
+        val result = flyingTimeCalculator.calculate(seasonalFlight, flightNumber, scan.flights)
+        if (scan.hitScanLimit &&
+            result.qualifiedCount < config.minHistoryFlight &&
+            result.source != EstimateSource.HISTORY
+        ) {
+            log.info(
+                "History scan hit raw cap {} for {} on {}: raw={}, filtered={}, qualified={}",
+                config.maxHistoryRows,
+                flightNumber,
+                flightDate,
+                scan.rawRows,
+                scan.filteredRows,
+                result.qualifiedCount,
+            )
+        }
         buildCalculatedResponse(flightNumber, flightDate, result)
     }
 
@@ -308,11 +258,7 @@ open class EsttService(
         flightDate: LocalDate,
         result: FlyingTimeCalculator.Result,
     ): FlyingTimeResponse = if (result.source == EstimateSource.NONE) {
-        buildNoEstimateResponse(
-            flightNumber,
-            flightDate,
-            NoEstimateReason.INSUFFICIENT_HISTORY_NO_SEASONAL_TIME,
-        )
+        buildNoEstimateResponse(flightNumber, flightDate, NoEstimateReason.INSUFFICIENT_HISTORY_NO_SEASONAL_TIME)
     } else {
         FlyingTimeResponse(
             flightNumber,
@@ -328,15 +274,5 @@ open class EsttService(
     }
 
     private fun buildNoEstimateResponse(flightNumber: String, flightDate: LocalDate, reason: NoEstimateReason): FlyingTimeResponse =
-        FlyingTimeResponse(
-            flightNumber,
-            flightDate,
-            null,
-            false,
-            false,
-            reason.message,
-            EstimateSource.NONE,
-            0,
-            Confidence.NONE,
-        )
+        FlyingTimeResponse(flightNumber, flightDate, null, false, false, reason.message, EstimateSource.NONE, 0, Confidence.NONE)
 }

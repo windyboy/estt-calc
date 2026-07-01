@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-07-01 — 算法修正（扫描 + 季节查询）/ Algorithm correction (scan + seasonal lookup)
+
+### 算法 / Algorithm
+
+- 计算路径历史加载改为**分页扫描**；当时刻偏差过滤后合格样本仍 `< minHistoryFlight` 时，**超出 `maxHistoryRows` 继续扫描窗口**，减少误判 `SEASONAL`/`NONE`。
+- Calculation history load **pages** raw rows and **extends beyond `maxHistoryRows`** when schedule-qualified samples are still below `minHistoryFlight`.
+- 季节航班 SQL **确定性**选行：`ORDER BY START_DATE DESC, FLIGHT_NUMBER FETCH FIRST 1 ROW ONLY`。
+- Seasonal flight SQL picks a **deterministic** row with the same `ORDER BY`.
+
+### 可观测性 / Observability
+
+- 新指标 / New metrics: `estt.history.calc.scan.*`（`raw_rows`、`filtered_rows`、`qualified_rows`、`hit_scan_limit`、`extended_beyond_budget`）。
+- 触达原始行预算且合格样本不足时记录 INFO 日志。
+- INFO log when raw cap is hit with insufficient qualified samples.
+
+### 文档 / Documentation
+
+- `docs/algorithm.md`、`docs/api.md`、`docs/code-map.md` 补充中英双语说明。
+
+### 验证 / Verification
+
+- `./gradlew check` 通过 / passed.
+
+---
+
 ## 2026-07-01 — Simplification pass (v3)
 
 ### Code quality

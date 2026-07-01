@@ -8,8 +8,6 @@ import com.gzzn.airport.model.HistoricalFlight
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.HistoryFlightRepository
 import com.gzzn.airport.repository.SeasonRepository
-import com.gzzn.airport.service.calculator.FlyingTimeCalculator
-import com.gzzn.airport.service.history.HistoryFlightProvider
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -19,9 +17,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
-import io.mockk.mockk
 import io.mockk.verify
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -29,35 +25,20 @@ import java.time.LocalDateTime
 class EsttServiceTest :
     DescribeSpec({
 
+        lateinit var ctx: EsttServiceTestContext
         lateinit var esttService: EsttService
         lateinit var seasonRepository: SeasonRepository
         lateinit var historyFlightRepository: HistoryFlightRepository
-        lateinit var historyFlightProvider: HistoryFlightProvider
-        lateinit var flyingTimeCalculator: FlyingTimeCalculator
         lateinit var meterRegistry: MeterRegistry
         lateinit var config: EsttCalculationConfig
 
         beforeEach {
-            seasonRepository = mockk()
-            historyFlightRepository = mockk()
-            meterRegistry = SimpleMeterRegistry()
-            config = EsttCalculationConfig(
-                maxScheduleDeviation = 120,
-                maxFlyingTimeDeviation = 120,
-                minHistoryFlight = 20,
-                dateFormat = "yyMMdd",
-                historyStartOffsetDays = 60L,
-                maxHistoryRows = 300,
-            )
-            historyFlightProvider = HistoryFlightProvider(historyFlightRepository, meterRegistry, config)
-            flyingTimeCalculator = FlyingTimeCalculator(meterRegistry, config)
-            esttService = EsttService(
-                seasonRepository,
-                historyFlightProvider,
-                flyingTimeCalculator,
-                meterRegistry,
-                config,
-            )
+            ctx = createEsttServiceTestContext()
+            esttService = ctx.esttService
+            seasonRepository = ctx.seasonRepository
+            historyFlightRepository = ctx.historyFlightRepository
+            meterRegistry = ctx.meterRegistry
+            config = ctx.config
         }
 
         describe("parseFlightDate") {
@@ -184,14 +165,7 @@ class EsttServiceTest :
                 val historyFlights = createHistoryFlights(25, LocalDate.of(2021, 12, 31))
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
-                every {
-                    historyFlightRepository.getArrivalFlight(
-                        "MU9941",
-                        any(),
-                        LocalDate.of(2021, 12, 30),
-                        300,
-                    )
-                } returns historyFlights
+                historyFlightRepository.mockArrivalFlightPages(historyFlights)
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
 
@@ -226,14 +200,7 @@ class EsttServiceTest :
                 val historyFlights = createHistoryFlights(5, LocalDate.of(2021, 12, 31))
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
-                every {
-                    historyFlightRepository.getArrivalFlight(
-                        "MU9941",
-                        any(),
-                        LocalDate.of(2021, 12, 30),
-                        300,
-                    )
-                } returns historyFlights
+                historyFlightRepository.mockArrivalFlightPages(historyFlights)
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
 
@@ -305,41 +272,12 @@ class EsttServiceTest :
                 )
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
-                every { historyFlightRepository.getArrivalFlight(any(), any(), any(), any()) } throws
+                every { historyFlightRepository.getArrivalFlightPage(any(), any(), any(), any(), any(), any()) } throws
                     RuntimeException("Database error")
 
                 val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
 
                 result.isFailure.shouldBeTrue()
-            }
-        }
-
-        describe("isOperationDayMatch") {
-            it("should return true when day is in operation days") {
-                esttService.isOperationDayMatch("1234567", 1).shouldBeTrue()
-                esttService.isOperationDayMatch("1234567", 5).shouldBeTrue()
-                esttService.isOperationDayMatch("246", 2).shouldBeTrue()
-            }
-
-            it("should return false when day is not in operation days") {
-                esttService.isOperationDayMatch("246", 1).shouldBeFalse()
-                esttService.isOperationDayMatch("246", 5).shouldBeFalse()
-                esttService.isOperationDayMatch("1", 2).shouldBeFalse()
-            }
-
-            it("should return false for empty operation days") {
-                esttService.isOperationDayMatch("", 1).shouldBeFalse()
-            }
-
-            it("should return false for invalid characters") {
-                esttService.isOperationDayMatch("abc", 1).shouldBeFalse()
-                esttService.isOperationDayMatch("1a2", 1).shouldBeTrue()
-                esttService.isOperationDayMatch("1a2", 2).shouldBeTrue()
-            }
-
-            it("should handle duplicate days") {
-                esttService.isOperationDayMatch("112233", 1).shouldBeTrue()
-                esttService.isOperationDayMatch("112233", 4).shouldBeFalse()
             }
         }
 
@@ -429,7 +367,7 @@ class EsttServiceTest :
                     historyStartOffsetDays = 60L,
                     maxHistoryRows = 10,
                 )
-                val constrainedService = buildService(
+                val constrainedService = createEsttServiceWithConfig(
                     seasonRepository,
                     historyFlightRepository,
                     meterRegistry,
@@ -520,7 +458,7 @@ class EsttServiceTest :
                 every { seasonRepository.getSeasonalArrivalFlight("MU7777", "5") } returns seasonalFlight
                 var historyInvocation = 0
                 every {
-                    historyFlightRepository.getArrivalFlight("MU7777", any(), any(), any())
+                    historyFlightRepository.getArrivalFlightPage("MU7777", any(), any(), any(), any(), any())
                 } answers {
                     if (historyInvocation++ == 0) {
                         throw RuntimeException("temporary")
@@ -556,14 +494,7 @@ class EsttServiceTest :
                 )
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU5678", "5") } returns seasonalFlight
-                every {
-                    historyFlightRepository.getArrivalFlight(
-                        "MU5678",
-                        any(),
-                        baseDate.minusDays(1),
-                        any(),
-                    )
-                } returns listOf(extremeEarly)
+                historyFlightRepository.mockArrivalFlightPages(listOf(extremeEarly))
 
                 val result = esttService.getHistoryFlights("MU5678", baseDate)
                 result.isSuccess.shouldBeTrue()
@@ -599,36 +530,3 @@ class EsttServiceTest :
             }
         }
     })
-
-private fun createHistoryFlights(count: Int, baseDate: LocalDate): List<HistoricalFlight> = (0 until count).map { i ->
-    val date = baseDate.minusDays((i * 7).toLong())
-    HistoricalFlight(
-        date,
-        LocalDateTime.of(date.year, date.monthValue, date.dayOfMonth, 10, 0),
-        LocalDateTime.of(date.year, date.monthValue, date.dayOfMonth, 11, 30),
-        LocalDateTime.of(date.year, date.monthValue, date.dayOfMonth, 11, 0),
-    )
-}
-
-private fun createHistoryFlightsWithDelay(count: Int, baseDate: LocalDate, delayMinutes: Long): List<HistoricalFlight> =
-    (0 until count).map { i ->
-        val date = baseDate.minusDays((i * 7).toLong())
-        val scheduled = LocalDateTime.of(date.year, date.monthValue, date.dayOfMonth, 11, 0)
-        HistoricalFlight(
-            date,
-            scheduled.minusHours(1),
-            scheduled.plusMinutes(delayMinutes),
-            scheduled,
-        )
-    }
-
-private fun buildService(
-    seasonRepository: SeasonRepository,
-    historyFlightRepository: HistoryFlightRepository,
-    meterRegistry: MeterRegistry,
-    config: EsttCalculationConfig,
-): EsttService {
-    val provider = HistoryFlightProvider(historyFlightRepository, meterRegistry, config)
-    val calculator = FlyingTimeCalculator(meterRegistry, config)
-    return EsttService(seasonRepository, provider, calculator, meterRegistry, config)
-}
