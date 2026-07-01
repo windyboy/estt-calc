@@ -425,3 +425,36 @@ Results:
 - No executable logic, tests, README, docs, Gradle files, SQL, configuration, dependencies, routes, DTO fields, or intended behavior were changed.
 
 Next phase is Phase 4: Characterization tests for risky behavior.
+
+
+### Phase 4 characterization tests completed
+
+Executed Phase 4.
+
+Changed files:
+
+- `src/test/kotlin/com/gzzn/airport/model/OperationDaysTest.kt`
+- `src/test/kotlin/com/gzzn/airport/service/calculator/FlyingTimeCalculatorTest.kt`
+- `task_plan.md`
+- `findings.md`
+- `progress.md`
+
+Tests added:
+
+- Operation-day parsing treats values as individual one-digit weekdays, ignores invalid characters, and deduplicates duplicates.
+- Calculator accuracy metrics record the exact absolute difference and do not increment high-accuracy when the difference is greater than 10.
+
+Verification commands run:
+
+```bash
+./gradlew test --tests com.gzzn.airport.model.OperationDaysTest --tests com.gzzn.airport.service.calculator.FlyingTimeCalculatorTest
+./gradlew test
+```
+
+Results:
+
+- First focused run failed because the sandbox could not access the Gradle wrapper lock under `~/.gradle`; reran with escalation as required.
+- Escalated focused test run passed.
+- Escalated full `./gradlew test` passed.
+
+Next phase is Phase 5: Deeper internal Kotlin refactor.

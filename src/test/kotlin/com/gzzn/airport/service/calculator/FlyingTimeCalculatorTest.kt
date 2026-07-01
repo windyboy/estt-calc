@@ -216,6 +216,28 @@ class FlyingTimeCalculatorTest :
                 result.source shouldBe EstimateSource.HISTORY
                 result.flyingTime shouldBe 95L
             }
+
+            it("records high accuracy metric only when history median is within ten minutes of seasonal time") {
+                val seasonalFlight = SeasonalFlight(
+                    flightNumber = "MU1008",
+                    operationDays = "1234567",
+                    flyingTime = 100,
+                    seasonStart = LocalDate.of(2024, 3, 31),
+                    seasonEnd = LocalDate.of(2024, 10, 26),
+                )
+                val historyFlights = buildHistoryFlights(
+                    baseDate = LocalDate.of(2024, 6, 1),
+                    count = config.minHistoryFlight,
+                    durationGenerator = { 111L },
+                )
+
+                val result = calculator.calculate(seasonalFlight, seasonalFlight.flightNumber, historyFlights)
+
+                result.source shouldBe EstimateSource.HISTORY
+                result.flyingTime shouldBe 111L
+                meterRegistry.counter("estt.calculation.accuracy", "accuracy", "11").count() shouldBe 1.0
+                meterRegistry.counter("estt.calculation.high_accuracy", "source", "history").count() shouldBe 0.0
+            }
         }
     })
 

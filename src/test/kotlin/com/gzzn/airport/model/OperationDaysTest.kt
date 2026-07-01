@@ -3,6 +3,7 @@ package com.gzzn.airport.model
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
 
 class OperationDaysTest :
     DescribeSpec({
@@ -20,6 +21,12 @@ class OperationDaysTest :
                 OperationDays.matches("111", 1).shouldBeTrue()
                 OperationDays.matches("1a2", 1).shouldBeTrue()
                 OperationDays.matches("abc", 1).shouldBeFalse()
+            }
+
+            it("treats operation days as individual one-digit weekdays") {
+                OperationDays.parse("1a227") shouldBe setOf(1, 2, 7)
+                OperationDays.matches("12", 12).shouldBeFalse()
+                OperationDays.matches("70", 0).shouldBeFalse()
             }
         }
     })

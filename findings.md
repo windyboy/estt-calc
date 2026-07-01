@@ -290,3 +290,19 @@ These should be preserved and not overwritten without user approval.
   - `git diff --check` passed.
   - Initial non-escalated `./gradlew spotlessCheck` failed due sandbox denial on `~/.gradle` wrapper lock.
   - Escalated `./gradlew spotlessCheck` passed.
+
+
+## Phase 4 execution findings: characterization tests
+
+- Added characterization coverage for operation-day parsing semantics:
+  - `OperationDays.parse("1a227")` returns `setOf(1, 2, 7)`, preserving invalid-character ignore and duplicate-deduplication behavior.
+  - Multi-digit day values are not treated as valid weekdays: `OperationDays.matches("12", 12)` is false.
+  - `0` remains invalid even when present next to a valid digit.
+- Added characterization coverage for calculator accuracy metrics:
+  - History median `111` against seasonal flying time `100` records `estt.calculation.accuracy` with tag `accuracy=11`.
+  - The `estt.calculation.high_accuracy` counter remains `0.0` when the absolute difference is greater than 10.
+- Verification:
+  - Initial non-escalated focused Gradle run failed due sandbox denial on the Gradle wrapper lock under `~/.gradle`.
+  - Escalated focused test run passed for `OperationDaysTest` and `FlyingTimeCalculatorTest`.
+  - Escalated full `./gradlew test` passed.
+- These tests lock behavior needed before refactoring `OperationDays` and `FlyingTimeCalculator` internals.
