@@ -66,6 +66,6 @@ src/main/kotlin/com/gzzn/airport/
 
 ## 相关文档 / Related docs
 
-- [algorithm.md](algorithm.md) — 业务规则与边界
+- [algorithm.md](algorithm.md) — 飞行时长估算算法
 - [api.md](api.md) — HTTP 契约
 - [development.md](development.md) — 构建、测试、排障

@@ -12,7 +12,7 @@ This guide summarizes the local Micronaut/Kotlin workflow for this service.
 
 | 文档 / Document | 内容 / Contents |
 |-----------------|-----------------|
-| [algorithm.md](algorithm.md) | 计算规则、过滤、边界 |
+| [algorithm.md](algorithm.md) | 飞行时长估算算法 |
 | [api.md](api.md) | REST 端点与响应契约 |
 | [code-map.md](code-map.md) | 源码布局与领域注释位置 |
 | This guide | 构建、测试、排障 |

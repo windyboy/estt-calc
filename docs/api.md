@@ -19,9 +19,9 @@ Returns the active `FlightSeason`, or **404** if none.
 
 ### `GET /estt/history/{flightNumber}/{flightDate}{?limit,offset}`
 
-经阶段 A/B 业务过滤后的到港历史，分页返回（**不含**阶段 C 时刻偏差过滤；见 [algorithm.md §5.2](algorithm.md#52-分页扫描)）。
+经「基本有效」与「与目标航班可比」两道筛选后的到港历史，分页返回（**不含**到港时刻可信筛选；见 [algorithm.md 附录](algorithm.md#附与历史查询接口的差异)）。
 
-Paginated historical arrivals after stage A/B business filtering (**excludes** stage-C schedule-deviation filter; see [algorithm.md §5.2](algorithm.md#52-分页扫描)).
+Paginated historical arrivals after basic-valid and comparability filtering (**excludes** arrival-time credibility filter; see [algorithm.md appendix](algorithm.md#附与历史查询接口的差异)).
 
 | 参数 / Query | 默认 / Default | 约束 / Constraint |
 |--------------|----------------|-------------------|

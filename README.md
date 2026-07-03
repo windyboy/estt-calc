@@ -18,7 +18,7 @@ Local endpoints: `GET /estt/season`, `GET /estt/flyTime/{flightNumber}/{flightDa
 
 | 文档 / Document | 内容 / Contents |
 |-----------------|-----------------|
-| [docs/algorithm.md](docs/algorithm.md) | 计算步骤、过滤、边界、运营日编码 |
+| [docs/algorithm.md](docs/algorithm.md) | 飞行时长估算算法（业务规则） |
 | [docs/api.md](docs/api.md) | REST 端点、响应字段、校验、错误 |
 | [docs/code-map.md](docs/code-map.md) | 源码布局、关键文件、测试位置 |
 | [docs/development.md](docs/development.md) | 构建/测试流程、排障、已知限制 |
