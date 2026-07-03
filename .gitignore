@@ -17,3 +17,5 @@ logs/
 bin
 logs
 *.db
+__pycache__/
+*.pyc

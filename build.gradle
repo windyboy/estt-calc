@@ -126,3 +126,18 @@ tasks.named("check") {
 tasks.withType(Test).configureEach {
     failOnNoDiscoveredTests = false
 }
+
+tasks.register('printKlsClasspath') {
+    group = 'ide'
+    description = 'Prints dependency JARs for the Kotlin Language Server (kls-classpath script)'
+    doLast {
+        def seen = [] as Set
+        ['compileClasspath', 'runtimeClasspath', 'testCompileClasspath'].each { configName ->
+            configurations.findByName(configName)?.files?.each { file ->
+                if (seen.add(file.absolutePath)) {
+                    println(file.absolutePath)
+                }
+            }
+        }
+    }
+}

@@ -173,8 +173,8 @@ class EsttServiceTest :
                 val response = result.getOrNull()
                 response.shouldNotBeNull()
                 response.flightNumber shouldBe "MU9941"
-                response.history.shouldBeTrue()
-                response.seasonal.shouldBeFalse()
+                (response.source == EstimateSource.HISTORY).shouldBeTrue()
+                (response.source == EstimateSource.SEASONAL).shouldBeFalse()
                 response.source shouldBe EstimateSource.HISTORY
                 response.flyingTime!! shouldBeGreaterThan 0
 
@@ -209,7 +209,7 @@ class EsttServiceTest :
                 response.shouldNotBeNull()
                 response.flightNumber shouldBe "MU9941"
                 response.flyingTime shouldBe 90L
-                response.seasonal.shouldBeTrue()
+                (response.source == EstimateSource.SEASONAL).shouldBeTrue()
 
                 meterRegistry.counter("estt.calculation.source", "source", "schedule").count() shouldBe 1.0
                 meterRegistry.counter("estt.calculation.success", "source", "schedule").count() shouldBe 1.0
@@ -226,7 +226,7 @@ class EsttServiceTest :
                 response.flightNumber shouldBe "XX9999"
                 response.flyingTime shouldBe null
                 response.source shouldBe EstimateSource.NONE
-                response.seasonal.shouldBeFalse()
+                (response.source == EstimateSource.SEASONAL).shouldBeFalse()
             }
 
             it("should throw exception for empty flight number") {

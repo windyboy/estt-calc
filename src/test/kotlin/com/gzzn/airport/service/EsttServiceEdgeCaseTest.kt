@@ -1,6 +1,7 @@
 package com.gzzn.airport.service
 
 import com.gzzn.airport.config.EsttCalculationConfig
+import com.gzzn.airport.model.EstimateSource
 import com.gzzn.airport.model.HistoricalFlight
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.HistoryFlightRepository
@@ -53,7 +54,7 @@ class EsttServiceEdgeCaseTest :
 
                 result.isSuccess.shouldBeTrue()
                 val response = result.getOrNull()!!
-                response.history.shouldBeTrue()
+                (response.source == EstimateSource.HISTORY).shouldBeTrue()
                 response.flyingTime!! shouldBeGreaterThan 0
             }
 

@@ -2,6 +2,7 @@ package com.gzzn.airport.model
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import java.time.LocalDate
@@ -91,7 +92,7 @@ class ModelTest :
                     LocalDate.of(2021, 12, 31),
                     90L,
                     true,
-                    true,
+                    false,
                     "Test message",
                     EstimateSource.HISTORY,
                     20,
@@ -101,8 +102,8 @@ class ModelTest :
                 response.flightNumber shouldBe "MU9941"
                 response.flightDate shouldBe LocalDate.of(2021, 12, 31)
                 response.flyingTime shouldBe 90L
-                response.history.shouldBeTrue()
-                response.seasonal.shouldBeTrue()
+                (response.source == EstimateSource.HISTORY).shouldBeTrue()
+                (response.source == EstimateSource.SEASONAL).shouldBeFalse()
                 response.message shouldBe "Test message"
                 response.source shouldBe EstimateSource.HISTORY
                 response.sampleSize shouldBe 20

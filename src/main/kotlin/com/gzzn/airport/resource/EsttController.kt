@@ -204,7 +204,7 @@ open class EsttController(
 
         return esttService.calculate(request.normalizedFlightNumber, request.flightDate).fold(
             onSuccess = { result ->
-                log.info("Response: flyingTime=${result.flyingTime}, history=${result.history}, seasonal=${result.seasonal}")
+                log.info("Response: flyingTime=${result.flyingTime}, source=${result.source}")
                 HttpResponse.ok(result)
             },
             onFailure = { e ->
