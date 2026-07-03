@@ -6,7 +6,6 @@ import com.gzzn.airport.model.Confidence
 import com.gzzn.airport.model.EstimateSource
 import com.gzzn.airport.model.FlightSeason
 import com.gzzn.airport.model.FlyingTimeResponse
-import com.gzzn.airport.model.HistoricalFlight
 import com.gzzn.airport.model.NoEstimateReason
 import com.gzzn.airport.model.OperationDays
 import com.gzzn.airport.model.PaginatedHistoryResponse
@@ -44,12 +43,14 @@ open class EsttService(
 
     init {
         log.info(
-            "EsttService initialized: maxScheduleDeviation={} maxFlyingTimeDeviation={} minHistoryFlight={} historyStartOffsetDays={} maxHistoryRows={} dateFormat={}",
+            "EsttService initialized: maxScheduleDeviation={} maxFlyingTimeDeviation={} minHistoryFlight={} maxHistoryRows={} maxRawScanRows={} minFlyingTime={} maxFlyingTime={} dateFormat={}",
             config.maxScheduleDeviation,
             config.maxFlyingTimeDeviation,
             config.minHistoryFlight,
-            config.historyStartOffsetDays,
             config.maxHistoryRows,
+            config.maxRawScanRows,
+            config.minFlyingTime,
+            config.maxFlyingTime,
             config.dateFormat,
         )
     }
@@ -88,7 +89,7 @@ open class EsttService(
 
         // INSTR 仅为数据库预筛选；服务层再次校验运营日和航季边界。
         // INSTR is a DB prefilter only; service revalidates operation day and season bounds.
-        val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, operationDay.toString())
+        val seasonalFlight = seasonRepository.getSeasonalArrivalFlight(flightNumber, operationDay.toString(), flightDate)
 
         val validatedFlight = seasonalFlight?.let {
             val operationDayMatches = OperationDays.matches(it.operationDays, operationDay)
@@ -119,17 +120,6 @@ open class EsttService(
 
     open fun getSeasonalFlight(flightNumber: String, flightDate: LocalDate): Result<SeasonalFlight?> =
         catching({ cachedSeasonalFlight(flightNumber, flightDate) }, "Error finding seasonal flight for $flightNumber on $flightDate")
-
-    @Cacheable("history-flights")
-    open fun cachedHistoryFlights(flightNumber: String, flightDate: LocalDate): List<HistoricalFlight> {
-        val seasonalFlight = cachedSeasonalFlight(flightNumber, flightDate) ?: return emptyList()
-        // 无航季计划时不构造历史样本。
-        // Without a seasonal schedule there is no trusted history sample.
-        return historyFlightProvider.getHistoryFlights(seasonalFlight, flightDate).flights
-    }
-
-    open fun getHistoryFlights(flightNumber: String, flightDate: LocalDate): Result<List<HistoricalFlight>> =
-        catching({ cachedHistoryFlights(flightNumber, flightDate) }, "Error getting history flights for $flightNumber on $flightDate")
 
     open fun getPaginatedHistoryFlights(
         flightNumber: String,
@@ -235,18 +225,16 @@ open class EsttService(
     ): Result<FlyingTimeResponse> = catching({
         historyFlightProvider.getHistoryFlights(seasonalFlight, flightDate)
     }, "Error getting history flights with seasonal flight for $flightDate").map { scan ->
-        val result = flyingTimeCalculator.calculate(seasonalFlight, flightNumber, scan.flights)
-        if (scan.hitScanLimit &&
+        val result = flyingTimeCalculator.calculate(seasonalFlight, flightNumber, scan.qualifiedFlights)
+        if (scan.insufficientAfterBudget &&
             result.qualifiedCount < config.minHistoryFlight &&
             result.source != EstimateSource.HISTORY
         ) {
             log.info(
-                "History scan hit raw cap {} for {} on {}: raw={}, filtered={}, qualified={}",
-                config.maxHistoryRows,
-                flightNumber,
-                flightDate,
+                "History scan ended without enough qualified samples: rawCap={}, raw={}, filtered={}, qualified={}",
+                config.maxRawScanRows,
                 scan.rawRows,
-                scan.filteredRows,
+                scan.stageBRows,
                 result.qualifiedCount,
             )
         }

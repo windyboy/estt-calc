@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-07-03 — 实现简化与指标整理 / Implementation simplification
+
+### 算法 / Algorithm
+
+- 历史窗口固定 `startDate = seasonStart`；移除无效配置 `START_MINUS`。
+- `HistoryFlightProvider` 负责主计算阶段 B/C 筛选与扫描停止（分页历史接口仅阶段 B）；`FlyingTimeCalculator` 仅处理已合格样本。
+- `HistoryFlightScan` 精简为 `qualifiedFlights` 与扫描元数据：`stageBRows`、`qualifiedRows`、`insufficientAfterBudget`、`extendedScanUsed`。
+
+### 可观测性 / Observability
+
+- 历史扫描指标统一为 `estt.history.scan.*`（`raw_rows`、`stage_b_rows`、`qualified_rows`、`extended_used`、`calls`）。
+- 移除未实现的 `estt.rate-limiting` 配置项。
+
+### 文档 / Documentation
+
+- 算法修订历史移至本 CHANGELOG；`docs/algorithm.md` 仅保留现行规则与实现附录。
+
+### 验证 / Verification
+
+- `./gradlew check` 通过 / passed.
+
+---
+
+## 2026-07-03 — 算法规则修订 / Algorithm rule corrections
+
+| # | 问题 | 现行规则 |
+|---|------|----------|
+| 1 | 历史混入其它运营日 | 历史星期须等于目标 `flightDate` 星期 |
+| 2 | 窗口早于航季 | `startDate = seasonStart` |
+| 3 | 扫描无界 / 不提前停 | 阶段一达标即停（批次后判断）；阶段二硬顶 `×3` |
+| 4 | `flyingTime` 为 null 无约束 | 弱约束 `[MIN_FLYING_TIME, MAX_FLYING_TIME]` |
+| 5 | 空窗口 | `startDate > endDate` 时跳过历史 |
+| 6 | 季节多段误选 | `START_DATE ≤ flightDate`；取最新已生效段 |
+
+---
+
 ## 2026-07-01 — 算法修正（扫描 + 季节查询）/ Algorithm correction (scan + seasonal lookup)
 
 ### 算法 / Algorithm
@@ -17,7 +53,7 @@
 
 ### 文档 / Documentation
 
-- `docs/algorithm.md`、`docs/api.md`、`docs/code-map.md` 补充中英双语说明。
+- 更新 `docs/algorithm.md`、`docs/api.md`、`docs/code-map.md` 算法与 API 说明。
 
 ### 验证 / Verification
 

@@ -10,9 +10,12 @@ class EsttCalculationConfig(
     @param:Value("\${estt.calculation.max-flying-time-deviation:120}") val maxFlyingTimeDeviation: Int,
     @param:Value("\${estt.calculation.min-history-flight:20}") val minHistoryFlight: Int,
     @param:Value("\${estt.calculation.date-format}") val dateFormat: String,
-    @param:Value("\${estt.calculation.history-start-offset-days}") val historyStartOffsetDays: Long,
     @param:Value("\${estt.calculation.max-history-rows:300}") val maxHistoryRows: Int,
+    @param:Value("\${estt.calculation.min-flying-time:30}") val minFlyingTime: Long,
+    @param:Value("\${estt.calculation.max-flying-time:600}") val maxFlyingTime: Long,
 ) {
+    val maxRawScanRows: Int get() = maxHistoryRows * EXTENDED_SCAN_MULTIPLIER
+
     init {
         require(minHistoryFlight > 0) {
             "Configuration error: estt.calculation.min-history-flight must be positive, got: $minHistoryFlight"
@@ -26,11 +29,21 @@ class EsttCalculationConfig(
         require(maxHistoryRows > 0) {
             "Configuration error: estt.calculation.max-history-rows must be positive, got: $maxHistoryRows"
         }
-        require(historyStartOffsetDays >= 0) {
-            "Configuration error: estt.calculation.history-start-offset-days must be non-negative, got: $historyStartOffsetDays"
+        require(maxHistoryRows <= Int.MAX_VALUE / EXTENDED_SCAN_MULTIPLIER) {
+            "Configuration error: estt.calculation.max-history-rows too large for extended scan multiplier, got: $maxHistoryRows"
+        }
+        require(minFlyingTime > 0) {
+            "Configuration error: estt.calculation.min-flying-time must be positive, got: $minFlyingTime"
+        }
+        require(maxFlyingTime > minFlyingTime) {
+            "Configuration error: estt.calculation.max-flying-time must be greater than min-flying-time, got: $maxFlyingTime <= $minFlyingTime"
         }
         require(dateFormat.isNotBlank()) {
             "Configuration error: estt.calculation.date-format must not be blank"
         }
+    }
+
+    companion object {
+        const val EXTENDED_SCAN_MULTIPLIER = 3
     }
 }

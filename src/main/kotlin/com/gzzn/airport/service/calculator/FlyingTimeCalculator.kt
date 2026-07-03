@@ -10,10 +10,9 @@ import io.micrometer.core.instrument.MeterRegistry
 import jakarta.inject.Singleton
 import org.slf4j.LoggerFactory
 import java.time.Duration
-import java.time.LocalDateTime
 import kotlin.math.abs
 
-/** 将已过滤历史样本转换为飞行时长估算结果。Turns filtered historical samples into a flying-time decision. */
+/** 将已合格历史样本转换为飞行时长估算结果。Turns pre-qualified historical samples into a flying-time decision. */
 @Singleton
 class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val config: EsttCalculationConfig) {
 
@@ -30,26 +29,21 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
         val historyUsed: Boolean get() = source == EstimateSource.HISTORY
     }
 
-    /** 时刻偏差过滤；供历史扫描判断合格样本是否足够。Schedule-deviation filter for scan stop conditions. */
-    fun filterByScheduleDeviation(historyFlights: List<HistoricalFlight>): List<HistoricalFlight> =
-        getQualifiedHistoryFlights(historyFlights)
-
-    fun calculate(seasonalFlight: SeasonalFlight, flightNumber: String, historyFlights: List<HistoricalFlight>): Result {
-        val qualifiedFlights = getQualifiedHistoryFlights(historyFlights)
-        recordQualifiedScanMetrics(qualifiedFlights.size)
+    fun calculate(seasonalFlight: SeasonalFlight, flightNumber: String, qualifiedFlights: List<HistoricalFlight>): Result {
+        val qualifiedCount = qualifiedFlights.size
         log.debug(
             "Found {} qualified history flights (minimum required: {})",
-            qualifiedFlights.size,
+            qualifiedCount,
             config.minHistoryFlight,
         )
 
-        if (qualifiedFlights.size >= config.minHistoryFlight) {
+        if (qualifiedCount >= config.minHistoryFlight) {
             val flyingTime = medianFlyingTime(qualifiedFlights)
             log.info(
                 "{}: Calculated flying time {} minutes from {} historical flights",
                 flightNumber,
                 flyingTime,
-                qualifiedFlights.size,
+                qualifiedCount,
             )
 
             meterRegistry.counter("estt.calculation.source", "source", "history").increment()
@@ -64,10 +58,10 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
             return Result(
                 flyingTime = flyingTime,
                 source = EstimateSource.HISTORY,
-                sampleSize = qualifiedFlights.size,
-                qualifiedCount = qualifiedFlights.size,
+                sampleSize = qualifiedCount,
+                qualifiedCount = qualifiedCount,
                 confidence = Confidence.HIGH,
-                message = "Calculated from ${qualifiedFlights.size} historical flights",
+                message = "Calculated from $qualifiedCount historical flights",
             )
         }
 
@@ -76,7 +70,7 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
             log.warn(
                 "{}: Insufficient history ({}/{}). Using seasonal time: {} minutes",
                 flightNumber,
-                qualifiedFlights.size,
+                qualifiedCount,
                 config.minHistoryFlight,
                 seasonalTime,
             )
@@ -85,7 +79,7 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
                 flyingTime = seasonalTime,
                 source = EstimateSource.SEASONAL,
                 sampleSize = 0,
-                qualifiedCount = qualifiedFlights.size,
+                qualifiedCount = qualifiedCount,
                 confidence = Confidence.NONE,
                 message = "Using seasonal flight flying time due to insufficient historical data",
             )
@@ -94,36 +88,17 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
         log.warn(
             "{}: Insufficient history ({}/{}) and no seasonal flying time configured",
             flightNumber,
-            qualifiedFlights.size,
+            qualifiedCount,
             config.minHistoryFlight,
         )
         return Result(
             flyingTime = null,
             source = EstimateSource.NONE,
-            sampleSize = qualifiedFlights.size,
-            qualifiedCount = qualifiedFlights.size,
+            sampleSize = qualifiedCount,
+            qualifiedCount = qualifiedCount,
             confidence = Confidence.NONE,
             message = NoEstimateReason.INSUFFICIENT_HISTORY_NO_SEASONAL_TIME.message,
         )
-    }
-
-    private fun recordQualifiedScanMetrics(qualifiedCount: Int) {
-        meterRegistry.summary("estt.history.calc.scan.qualified_rows").record(qualifiedCount.toDouble())
-        val sufficient = qualifiedCount >= config.minHistoryFlight
-        meterRegistry.counter(
-            "estt.history.calc.scan.calls",
-            "qualified_sufficient",
-            sufficient.toString(),
-        ).increment()
-    }
-
-    /** 早到始终保留，晚到在阈值内（含等于）保留。Early arrivals accepted; late within threshold accepted. */
-    private fun getQualifiedHistoryFlights(historyFlights: List<HistoricalFlight>): List<HistoricalFlight> =
-        historyFlights.filter { isScheduleDeviationAcceptable(it.scheduledTime, it.actualTime) }
-
-    private fun isScheduleDeviationAcceptable(scheduledTime: LocalDateTime, actualTime: LocalDateTime): Boolean {
-        val deviationMinutes = Duration.between(scheduledTime, actualTime).toMinutes()
-        return deviationMinutes <= config.maxScheduleDeviation
     }
 
     /** 整数中位数；偶数样本取中间两值的整数平均。Integer median; even count uses integer average of middles. */
@@ -142,6 +117,6 @@ class FlyingTimeCalculator(private val meterRegistry: MeterRegistry, private val
         }
     }
 
-    private fun calculateDurationMinutes(startTime: LocalDateTime, endTime: LocalDateTime): Long =
+    private fun calculateDurationMinutes(startTime: java.time.LocalDateTime, endTime: java.time.LocalDateTime): Long =
         Duration.between(startTime, endTime).toMinutes()
 }

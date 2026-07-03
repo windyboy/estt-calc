@@ -2,7 +2,7 @@
 
 基础路径 / Base path: `/estt`。交互文档 / Swagger UI: `http://localhost:8080/swagger-ui`。
 
-算法规则见 [algorithm.md](algorithm.md)（中英双语）。
+算法规则见 [algorithm.md](algorithm.md)。
 
 ## 端点 / Endpoints
 
@@ -19,9 +19,9 @@ Returns the active `FlightSeason`, or **404** if none.
 
 ### `GET /estt/history/{flightNumber}/{flightDate}{?limit,offset}`
 
-经业务过滤后的到港历史，分页返回。
+经阶段 A/B 业务过滤后的到港历史，分页返回（**不含**阶段 C 时刻偏差过滤；见 [algorithm.md §5.2](algorithm.md#52-分页扫描)）。
 
-Paginated historical arrivals after business filtering.
+Paginated historical arrivals after stage A/B business filtering (**excludes** stage-C schedule-deviation filter; see [algorithm.md §5.2](algorithm.md#52-分页扫描)).
 
 | 参数 / Query | 默认 / Default | 约束 / Constraint |
 |--------------|----------------|-------------------|
@@ -71,8 +71,13 @@ curl "http://localhost:8080/estt/history/MU9941/211231?limit=5&offset=10"
 
 ```json
 {
+  "flightNumber": "MU9941",
+  "flightDate": "2021-12-31",
   "source": "SEASONAL",
   "flyingTime": 90,
+  "history": false,
+  "seasonal": true,
+  "message": "Using seasonal flight flying time due to insufficient historical data",
   "sampleSize": 0,
   "confidence": "NONE"
 }
@@ -82,8 +87,13 @@ curl "http://localhost:8080/estt/history/MU9941/211231?limit=5&offset=10"
 
 ```json
 {
+  "flightNumber": "MU9941",
+  "flightDate": "2021-12-31",
   "source": "NONE",
   "flyingTime": null,
+  "history": false,
+  "seasonal": false,
+  "message": "no seasonal flight for operation day",
   "sampleSize": 0,
   "confidence": "NONE"
 }
@@ -99,7 +109,7 @@ curl "http://localhost:8080/estt/history/MU9941/211231?limit=5&offset=10"
 | 状态 / Status | 场景 / When |
 |---------------|-------------|
 | 400 | 非法航班号或日期 |
-| 404 | 航季或季节航班未找到（业务空结果） |
+| 404 | 显式查询端点未找到：`GET /estt/season`、`GET /estt/seasonal/...` |
 | 500 | 数据库或计算失败 |
 
 ## 健康检查与指标 / Health and metrics
@@ -109,8 +119,8 @@ curl "http://localhost:8080/estt/history/MU9941/211231?limit=5&offset=10"
 | `GET /health` | 应用健康 |
 | `GET /prometheus` | Prometheus 指标 |
 
-分页指标：`estt.history.pagination.*`。计算指标：`estt.calculation.*`（`SEASONAL` 在指标中标记为 `schedule`）。历史扫描：`estt.history.calc.scan.*`。
+分页指标：`estt.history.pagination.*`。计算指标：`estt.calculation.*`（`SEASONAL` 在指标中标记为 `schedule`）。历史扫描：`estt.history.scan.*`。
 
 ## 配置 / Configuration
 
-见 [README 配置章节](../README.md#配置-configuration) 与 `application.yml`。主要环境变量：`ORACLE_*`、`MAX_SCHEDULE_DEVIATION`、`MAX_FLYING_TIME_DEVIATION`、`MIN_HISTORY`、`START_MINUS`、`MAX_HISTORY_ROWS`、`FLIGHT_NUMBER_PATTERN`。
+见 [README 配置章节](../README.md#配置-configuration) 与 `application.yml`。主要环境变量：`ORACLE_*`、`MAX_SCHEDULE_DEVIATION`、`MAX_FLYING_TIME_DEVIATION`、`MIN_HISTORY`、`MIN_FLYING_TIME`、`MAX_FLYING_TIME`、`MAX_HISTORY_ROWS`、`FLIGHT_NUMBER_PATTERN`。

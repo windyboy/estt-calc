@@ -6,9 +6,6 @@ micronaut:
   caches:
     active-season:
       expire-after-write: 1h
-    history-flights:
-      expire-after-write: 4h
-      maximum-size: 1000
   router:
     static-resources:
       swagger:
@@ -32,12 +29,11 @@ estt:
     max-flying-time-deviation: ${MAX_FLYING_TIME_DEVIATION:120}
     min-history-flight: ${MIN_HISTORY:20}
     date-format: 'yyMMdd'
-    history-start-offset-days: ${START_MINUS:60}
     max-history-rows: ${MAX_HISTORY_ROWS:300}
+    min-flying-time: ${MIN_FLYING_TIME:30}
+    max-flying-time: ${MAX_FLYING_TIME:600}
   validation:
     flight-number-pattern: ${FLIGHT_NUMBER_PATTERN:^[A-Z]{2}[0-9]{3,4}$}
-  rate-limiting:
-    enabled: ${RATE_LIMITING_ENABLED:true}
 
 endpoints:
   health:

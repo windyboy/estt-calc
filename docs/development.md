@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide summarizes the local Micronaut/Kotlin workflow for this service. It documents the current project state only; it does not introduce new commands, dependencies, or runtime behavior.
+This guide summarizes the local Micronaut/Kotlin workflow for this service.
 
 ## Prerequisites
 
@@ -12,10 +12,10 @@ This guide summarizes the local Micronaut/Kotlin workflow for this service. It d
 
 | 文档 / Document | 内容 / Contents |
 |-----------------|-----------------|
-| [algorithm.md](algorithm.md) | 计算规则、过滤、边界（**中英双语**） |
-| [api.md](api.md) | REST 端点与响应契约（**中英双语**） |
-| [code-map.md](code-map.md) | 源码布局与领域注释位置（**中英双语**） |
-| [development.md](development.md) | 本指南 — 构建、测试、排障 |
+| [algorithm.md](algorithm.md) | 计算规则、过滤、边界 |
+| [api.md](api.md) | REST 端点与响应契约 |
+| [code-map.md](code-map.md) | 源码布局与领域注释位置 |
+| This guide | 构建、测试、排障 |
 
 ## Common commands
 
@@ -81,7 +81,8 @@ Runtime configuration is defined in `src/main/resources/application.yml` and can
 - `MAX_SCHEDULE_DEVIATION`
 - `MAX_FLYING_TIME_DEVIATION`
 - `MIN_HISTORY`
-- `START_MINUS`
+- `MIN_FLYING_TIME`
+- `MAX_FLYING_TIME`
 - `MAX_HISTORY_ROWS`
 - `FLIGHT_NUMBER_PATTERN`
 
@@ -92,7 +93,7 @@ Tests use `src/test/resources/application-test.yml`, which configures an in-memo
 1. Start from the clean baseline: `./gradlew clean test` and `./gradlew build` should pass.
 2. For documentation-only edits, verify links and command snippets manually; run `./gradlew test` if the change also documents test behavior.
 3. Before Kotlin refactoring, add or update characterization tests that lock current behavior.
-4. Run focused tests for touched areas first, then run `./gradlew build` before committing.
+4. Run focused tests for touched areas first, then run `./gradlew check` before committing.
 5. Avoid changing public API signatures, endpoint paths, response shapes, error messages, exit codes, dependency versions, or Gradle configuration unless explicitly approved.
 
 ## Troubleshooting
@@ -126,7 +127,7 @@ Some integration-style tests are currently disabled with Kotest `xdescribe`, inc
 ## Known limitations
 
 - The service computes estimates on demand; it does not pre-compute estimates in the background.
-- The history scan is bounded by `MAX_HISTORY_ROWS`.
-- The `/estt/history` response reports filtered records observed within the bounded scan window.
+- Calculation history scan uses `MAX_HISTORY_ROWS` as the phase-one raw budget and `MAX_HISTORY_ROWS × 3` as the hard cap.
+- The `/estt/history` response scans at most `MAX_HISTORY_ROWS` raw rows and reports stage-A/B filtered records observed within that bounded scan window.
 - `message` fields are human-readable operational details; clients should rely on stable fields such as `source`, `flyingTime`, `sampleSize`, and `confidence`.
 - Real database behavior depends on Oracle schema/data outside this repository; unit tests use H2 test data.

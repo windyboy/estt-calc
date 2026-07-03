@@ -4,9 +4,10 @@ import com.gzzn.airport.model.HistoricalFlight
 
 /** Result of a calculation-path history fetch, including scan metadata for metrics. */
 data class HistoryFlightScan(
-    val flights: List<HistoricalFlight>,
+    val qualifiedFlights: List<HistoricalFlight>,
     val rawRows: Int,
-    val filteredRows: Int,
-    val hitScanLimit: Boolean,
-    val extendedBeyondBudget: Boolean = false,
+    val stageBRows: Int,
+    val qualifiedRows: Int,
+    val extendedScanUsed: Boolean = false,
+    val insufficientAfterBudget: Boolean = false,
 )

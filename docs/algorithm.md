@@ -1,251 +1,274 @@
 # ESTT 飞行时长估算算法 / ESTT Calculation Algorithm
 
-本文描述本服务实现的飞行时长（ESTT）估算规则，与 `EsttService`、`HistoryFlightProvider`、`FlyingTimeCalculator` 及仓储层源码一致；源码在关键决策点保留**中文在前、英文在后**的双语注释。
+本文是 ESTT 飞行时长的**权威算法规范**。正文仅描述现行规则；实现映射、缓存与指标见文末附录，修订历史见 [`CHANGELOG.md`](../CHANGELOG.md)。
 
-This document describes the flying-time estimation rules implemented in this service. Source code mirrors these rules with bilingual comments (Chinese first, English second) in `EsttService`, `HistoryFlightProvider`, `FlyingTimeCalculator`, and the repository layer.
+This is the **authoritative algorithm spec** for ESTT flying-time estimation. The body states current rules only; implementation mapping, caching, and metrics are in the appendices; revision history lives in [`CHANGELOG.md`](../CHANGELOG.md).
 
-- HTTP 契约见 [api.md](api.md) · HTTP contracts: [api.md](api.md)
-- 代码导航见 [code-map.md](code-map.md) · File navigation: [code-map.md](code-map.md)
+- HTTP 契约：[api.md](api.md)
+- 代码导航：[code-map.md](code-map.md)
 
-## 概述 / Overview
+---
 
-客户端调用 `GET /estt/flyTime/{flightNumber}/{flightDate}` 时**按需**计算，无后台预计算。季节与历史查询结果有缓存（见 [缓存 / Caching](#缓存--caching)）。
+## 一、核心算法规范 / Part I — Core algorithm
 
-Estimates are computed **on demand** on `GET /estt/flyTime/{flightNumber}/{flightDate}`. There is no background pre-computation. Seasonal and history queries are cached (see [Caching](#缓存--caching)).
+### 1. 概述 / Overview
 
 服务在三种结果中选择其一：
 
-The service chooses among three outcomes:
+| `source` | 含义 | `flyingTime` |
+|----------|------|--------------|
+| `HISTORY` | 合格历史样本的整数中位数 | 分钟 |
+| `SEASONAL` | 历史不足时回退季节计划时长 | 季节配置分钟数 |
+| `NONE` | 无可用估算 | `null` |
 
-| `source` | 含义 / Meaning | `flyingTime` |
-|----------|----------------|--------------|
-| `HISTORY` | 合格历史样本的整数中位数 / Integer median of qualified historical samples | 分钟 / minutes |
-| `SEASONAL` | 历史不足时回退季节计划时长 / Seasonal schedule fallback | 季节配置分钟数 / configured seasonal minutes |
-| `NONE` | 无可用估算 / No estimate | `null` |
+**决策优先级：** 合格历史（样本数 ≥ 门槛）→ 季节 `flyingTime > 0` 回退 → `NONE`。
 
-优先使用合格历史；仅当历史不足**且**季节 `flyingTime` 为正值（`> 0`）时回退季节计划。
+### 2. 输入前提 / Input prerequisites
 
-Qualified history is preferred whenever enough samples survive filtering. Seasonal `flyingTime` is used only when history is insufficient **and** a positive seasonal duration is configured.
+主计算路径要求：
 
-## 前置条件（输入校验）/ Prerequisites (input validation)
+- 航班号非空，长度 5–6。
+- `flightDate` 在 2000-01-01 之后，且不超过当前日期一年。
+- 日期为合法日历日（`yyMMdd` 解析规则见 [附录 B](#附录-b--实现说明--appendix-b--implementation)）。
 
-访问数据库前分两层校验：
+**时区：** 所有日期与时间（`flightDate`、`seasonStart`/`seasonEnd`、历史行的 `scheduledTime`/`actualTime` 等）均按**机场/业务本地时间**解释与比较；本规范不涉及时区转换。
 
-Before any database access, inputs are validated in two layers:
+**Timezone:** All dates and times are interpreted in **airport / business local time**; this spec does not define cross-timezone conversion.
 
-| 层级 / Layer | 位置 / Location | 规则 / Rules |
-|--------------|-----------------|--------------|
-| HTTP | `EsttController` | 航班号匹配 `estt.validation.flight-number-pattern`（默认 `^[A-Z]{2}[0-9]{3,4}$`，不区分大小写，服务端转大写）；日期严格 `yyMMdd` |
-| Service | `EsttService.validateInputs` | 航班号非空、长度 5–6；`flightDate` 在 2000-01-01 之后且不超过当前日期一年 |
+### 3. 计算步骤 / Calculation steps
 
-日期解析（`EsttService.parseFlightDate`）：恰好六位数字；年份 `00`–`99` 映射为 `2000`–`2099`；非法日历日期拒绝。
+1. **解析季节航班** — 见 [§4](#4-季节航班匹配--seasonal-flight-matching)。无有效季节航班 → `NONE`，**不查历史**。
+2. **加载历史候选** — 见 [§5](#5-历史日期窗口与扫描--history-window-and-scan)。若窗口为空则跳过。
+3. **阶段 A/B 过滤** — 见 [§6](#6-过滤流水线--filter-pipeline)。
+4. **阶段 C 过滤** — 时刻偏差，见 [§6.3](#63-阶段-c--时刻偏差--stage-c--schedule-deviation)。
+5. **决策** — 阶段 C 合格数 ≥ `minHistoryFlight` → 对**本次扫描累计**的合格样本取整数中位数（`HISTORY`）；否则季节 `flyingTime > 0` → `SEASONAL`；否则 `NONE`。
 
-Date parsing: exactly six digits; years `00`–`99` → `2000`–`2099`; invalid calendar dates rejected.
+### 4. 季节航班匹配 / Seasonal flight matching
 
-## 计算步骤 / Calculation steps
+**数据库预筛选：**
 
-1. **解析季节航班 / Resolve seasonal flight** — 查询当前激活航季（`ACTIVESEASON_FLAG = 1`）中与航班号、目标运营日匹配的记录，并在服务层二次校验（见 [季节航班匹配](#季节航班匹配--seasonal-flight-matching)）。无有效季节航班时立即返回 `source: NONE`（`no seasonal flight for operation day`），**不查历史**。
-2. **加载历史候选 / Load historical candidates** — 自 `seasonStart − historyStartOffsetDays`（默认 60 天）至**目标运营日前一天**（`endDate = flightDate − 1`）。计算路径通过 `getArrivalFlightPage` **分页**扫描原始行（块大小 100，按 `flight_date DESC`）。至少扫描 `maxHistoryRows`（默认 300）条原始行；若经时刻偏差过滤后合格样本仍 `< minHistoryFlight`，则**继续分页扫完窗口内剩余数据**，直至合格数足够或数据库无更多行。目标运营日本身**永不**纳入样本。
-3. **业务过滤 / Apply eligibility filters** — 剔除未通过数据库预过滤（SQL 已应用）或内存业务规则的行（见 [过滤流水线](#过滤流水线--filter-pipeline)）。
-4. **时刻偏差过滤 / Apply schedule-deviation filter** — 在 `FlyingTimeCalculator` 中：早到一律保留；晚到仅当 `actual − scheduled > maxScheduleDeviation` 时剔除（阈值处**含等于**）。
-5. **决策 / Decide outcome** — 合格数 ≥ `minHistoryFlight`（默认 20）→ 对**全部**合格样本飞行时长取**整数中位数**（`source: HISTORY`，`confidence: HIGH`）。否则若季节 `flyingTime > 0` → 返回季节时长（`source: SEASONAL`，`sampleSize: 0`）。否则 `flyingTime: null`（`source: NONE`，`sampleSize: 0`）。
+- `INSTR(OPERATION_DAYS, :operationDay) > 0`（粗筛；最终以 `OperationDays.matches` 为准）。
+- `seasonal_flight.START_DATE ≤ :flightDate`（仅已生效段）。
+- 关联当前激活航季（`ACTIVESEASON_FLAG = 1`）。
 
-## 季节航班匹配 / Seasonal flight matching
+**确定性选行：** 多行时 `ORDER BY seasonal_flight.START_DATE DESC FETCH FIRST 1 ROW ONLY`（已生效段中 `START_DATE` 最新）。
 
-使用 `SeasonRepository.getSeasonalArrivalFlight`：
+**唯一性假设：** 业务上，同一激活航季内、同一航班号、同一运营日、同一 `START_DATE` **应仅有一条**季节计划。若违反假设出现多行，现行 SQL 无业务级 tie-breaker（`FLIGHT_NUMBER` 对已过滤航班无区分度），取库返回的第一行并继续计算——视为**数据质量问题**；**运维应对重复季节计划告警**（服务主路径**不**做重复检测，由数据治理/运维 SQL 负责），源数据须保证唯一性。现行规范**不**因此自动返回 `NONE`（若未来要求遇重复即拒绝计算，须单独修订）。
 
-1. **数据库预筛选 / DB prefilter** — `INSTR(OPERATION_DAYS, :operationDay) > 0`（`operationDay` 为 ISO 星期数字 `1`=周一 … `7`=周日）。仅为粗筛，**不等于**逐位匹配（例如运营日 `1` 会误匹配 `"21"`）。
-2. **确定性选行 / Deterministic row** — 多行匹配时 SQL 取一行：`ORDER BY seasonal_flight.START_DATE DESC, seasonal_flight.FLIGHT_NUMBER FETCH FIRST 1 ROW ONLY`（优先最新季节段）。
-3. **服务层复核 / Service revalidation**（`EsttService.cachedSeasonalFlight`）— 须同时满足：
-   - **运营日** — `OperationDays.matches`（逐位集合匹配，非子串）
-   - **航季边界** — `seasonStart ≤ flightDate ≤ seasonEnd`（两端含）
-4. **激活航季** — 仅关联当前激活航季的计划行。
+**服务层复核（须同时满足）：**
 
-复核失败则视为无季节航班（`null`），与数据库无记录等同。
+- `OperationDays.matches(operationDays, targetWeekday)`
+- `seasonStart ≤ flightDate ≤ seasonEnd`
 
-If revalidation fails, the seasonal flight is treated as absent (`null`).
+复核失败视为无季节航班。
 
-## 历史日期窗口 / History date window
+### 5. 历史日期窗口与扫描 / History window and scan
+
+#### 5.1 日期窗口
 
 ```
-startDate = seasonalFlight.seasonStart − historyStartOffsetDays
+startDate = seasonStart
 endDate   = flightDate − 1 day
 ```
 
-| 边界 / Boundary | 是否包含 / Inclusive? |
-|-----------------|----------------------|
-| `startDate` | 是（SQL `BETWEEN`）/ Yes |
-| `endDate`（`flightDate − 1`） | 是 / Yes |
-| `flightDate`（目标日） | **排除 / Excluded** |
+| 边界 | 包含？ |
+|------|--------|
+| `startDate` | 是 |
+| `endDate` | 是 |
+| `flightDate`（目标日） | **排除** |
 
-`startDate` 可早于日历上的航季开始日（设计如此，用于航季初补样本）。
+若 `startDate > endDate`（**例如目标日为航季首日**：`flightDate = seasonStart`），历史样本为空，直接进入决策。
 
-No additional floor on `startDate` (may precede calendar season start by design).
+`startDate` 固定为航季开始日，**不**早于 `seasonStart`，避免跨航季样本。
 
-### 行数上限、分页与扩展扫描 / Row cap, paging, and extended scan
+#### 5.2 分页扫描
 
-计算路径使用 `HistoryFlightRepository.getArrivalFlightPage`：
+从数据库按 `flight_date DESC` 分页读取（块大小 100，实现细节见附录 B）。
 
-```sql
-ORDER BY flight_date DESC
-OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
-```
+**阶段一 — 预算扫描：** `rawScanned < maxHistoryRows` 期间循环拉取，直至满足以下**任一**条件：
 
-**阶段一 — 预算扫描 / Phase 1 — budget scan：** 分页读取原始行，直至 `rawScanned ≥ maxHistoryRows` 或窗口内无更多行。
+- 阶段 C 合格数 ≥ `minHistoryFlight`；
+- `rawScanned ≥ maxHistoryRows`；
+- 窗口内无更多行。
 
-**阶段二 — 扩展扫描（按需）/ Phase 2 — extended scan：** 若预算用尽且经时刻偏差过滤后合格样本仍 `< minHistoryFlight`，继续分页扫描窗口剩余部分，直至合格数足够或数据库无更多行。
+**阶段二 — 扩展扫描：** 仅当阶段一预算用尽且合格数仍不足时启用；继续直至合格数足够、无更多行、或 `rawScanned ≥ maxHistoryRows × 3`。
 
-要点 / Implications:
+**停止时机（精确语义）：**
 
-- `maxHistoryRows` 是**初始原始行预算**，非硬性上限；避免「窗口内仍有合格样本却误判历史不足」。
-- 指标/日志 `hitScanLimit`：初始预算已用尽，且完整扫描尝试后合格样本仍 `< minHistoryFlight`。
-- 分页历史 API（`GET /estt/history/...`）仍使用**固定** `maxHistoryRows` 扫描、**不**扩展；见 `HistoryFlightProvider.scanPaginatedHistory`。
+- 停止判断在**每个分页批次处理完成之后**执行，**不在**批次内逐行提前截断。
+- 因此：若某批次处理过程中合格数已达门槛，该批次内后续行仍会纳入本次扫描的 `qualifiedFlights`；`rawScanned` 计整批已拉取行数。
+- 达到门槛后**不再发起**新的数据库分页请求。
 
-## 过滤流水线 / Filter pipeline
+**扫描结果用于中位数的样本集：** 停止条件触发前、已通过阶段 C 的全部累计合格行（**非**整个历史窗口内所有可能合格行）。
 
-按顺序应用；每行须通过全部阶段才计入 `minHistoryFlight`。
+**分页历史 API（`GET /estt/history/...`）：** 仅应用阶段 A/B 过滤（运营日、飞行时长容差/绝对界等），**不**应用阶段 C（时刻偏差），**不**做阶段二扩展扫描。返回的是「历史资格样本」，与主计算用于中位数的「阶段 C 合格样本」不同。
 
-### 阶段 A — 数据库（`HistoryFlightRepository`）/ Stage A — Database
+### 6. 过滤流水线 / Filter pipeline
 
-| 过滤项 / Filter | 规则 / Rule |
-|-----------------|-------------|
-| 到港 / Arrival | `ARRI_OR_DEPT = 'A'` |
-| 非空时刻 / Non-null times | `ACTUAL_DATETIME`、`PRE_DEPT_DATETIME_ACTUAL` 均非空 |
-| 时间顺序 / Time order | `PRE_DEPT_DATETIME_ACTUAL < ACTUAL_DATETIME` |
-| 日期窗口 / Date window | `flight_date BETWEEN startDate AND endDate` |
-| 计划日期 / Scheduled date | `flight_date = TRUNC(SCHEDULED_DATETIME)` |
+每行须按序通过全部阶段；计入 `minHistoryFlight` 门槛的是阶段 C 合格数。
 
-### 阶段 B — 历史资格（`HistoryFlightProvider.isEligibleHistoryFlight`）/ Stage B — History eligibility
+#### 6.1 阶段 A — 数据库
 
-| 过滤项 / Filter | 规则 / Rule |
-|-----------------|-------------|
-| 运营日 / Operation day | 历史行星期与季节 `operationDays` 逐位匹配（`1`=周一 … `7`=周日） |
-| 时间顺序 / Time order | `previousDepartureTime < actualTime`（与 SQL 冗余；分页路径保留） |
-| 计划日期 / Scheduled date | `scheduledTime.toLocalDate() == flightDate` |
-| 飞行时长容差 / Flying-time tolerance | `\|actualDuration − seasonalFlyingTime\| < maxFlyingTimeDeviation`（严格 `<`）；季节 `flyingTime` 为 `null` 时**跳过** |
+| 过滤项 | 规则 |
+|--------|------|
+| 到港 | `ARRI_OR_DEPT = 'A'` |
+| 非空时刻 | `ACTUAL_DATETIME`、`PRE_DEPT_DATETIME_ACTUAL` 均非空 |
+| 时间顺序 | `PRE_DEPT_DATETIME_ACTUAL < ACTUAL_DATETIME` |
+| 日期窗口 | `flight_date BETWEEN startDate AND endDate` |
+| 计划日期 | `flight_date = TRUNC(SCHEDULED_DATETIME)` |
+
+#### 6.2 阶段 B — 历史资格
+
+| 过滤项 | 规则 |
+|--------|------|
+| 运营日 | 历史行星期 **等于** 目标 `flightDate` 星期；且在季节 `operationDays` 内 |
+| 时间顺序 | `previousDepartureTime < actualTime` |
+| 计划日期 | `scheduledTime.toLocalDate() == historyFlight.flightDate` |
+| 飞行时长容差 | 季节 `flyingTime` 非 null：`\|actualDuration − seasonalFlyingTime\| < maxFlyingTimeDeviation`（严格 `<`） |
+| 绝对时长界 | 季节 `flyingTime` 为 null：见下 |
 
 `actualDuration` = `Duration.between(previousDepartureTime, actualTime).toMinutes()`。
 
-### 阶段 C — 时刻偏差（`FlyingTimeCalculator`）/ Stage C — Schedule deviation
+**季节 `flyingTime` 为 null 时的绝对时长界（弱约束）：**
 
-| 情况 / Case | 规则 / Rule |
-|-------------|-------------|
-| 早到 / Early (`actual < scheduled`) | 一律保留 / Always kept |
-| 准点/晚到 / On-time or late | `(actual − scheduled).toMinutes() ≤ maxScheduleDeviation` 时保留 |
+- 规则：`minFlyingTime ≤ actualDuration ≤ maxFlyingTime`（默认 30–600 分钟）。
+- **目的：** 仅剔除明显不合理的极端脏数据，**非**航线标定约束；600 分钟对部分航线可能仍过宽。
+- **影响：** 无季节锚点时，阶段 B 区分力较弱；最终若仍走 `HISTORY`，仅表示样本数达标，不代表航线时长可信度高（见 [§8](#8-结果字段--outcome-fields)）。
 
-## 边界规则速查 / Boundary rules (quick reference)
+#### 6.3 阶段 C — 时刻偏差
 
-| 规则 / Rule | 边界 / Boundary | 代码 / Code |
-|-------------|-----------------|-------------|
-| 时刻偏差（仅晚到）/ Schedule delay | 含等于：`actual − scheduled ≤ maxScheduleDeviation` | `FlyingTimeCalculator` |
-| 飞行时长 vs 季节 / Flying-time vs seasonal | 不含等于：`\|duration − seasonal\| < maxFlyingTimeDeviation` | `HistoryFlightProvider` |
-| 历史窗口 / History window | 排除目标运营日 | `historyWindow` |
-| 季节回退 / Seasonal fallback | `flyingTime` 须 `> 0` | `FlyingTimeCalculator` |
-| 中位数门槛 / Median threshold | 含等于：`count ≥ minHistoryFlight` | `FlyingTimeCalculator` |
+仅作用于**已通过阶段 A/B** 的样本。
 
-## 运营日编码 / Operation day encoding
+| 情况 | 规则 |
+|------|------|
+| 早到（`actual < scheduled`） | **一律保留** |
+| 准点/晚到 | `(actual − scheduled).toMinutes() ≤ maxScheduleDeviation` 时保留（含等于） |
 
-季节 `operationDays` 为数字串 **1–7**，**1=周一 … 7=周日**（ISO-8601）。
+**早到不设上限 — 业务假设：**
 
-- 示例：`"135"` → 周一、周三、周五。
-- `OperationDays.parse` / `matches`：合法数字为集合成员；非法字符忽略；重复数字去重。
-- **模型约束**：`SeasonalFlight` 构造时要求全部为 `1..7` 数字。
+- 到港早于计划是运营上可接受、且对飞行时长估算仍有参考价值的情形。
+- 极端早到若实为数据异常，应依赖阶段 A/B（时刻顺序、飞行时长容差/绝对界）拦截，**不**另设 `maxEarlyDeviation`。
+- 若未来业务要求限制早到幅度，需新增配置项并修订本规范。
 
-**注意：** SQL `INSTR` 为子串匹配，可能误命中；最终以 `OperationDays.matches` 为准。
+### 7. 运营日编码 / Operation day encoding
 
-## 中位数规则 / Median rule
+`operationDays` 为数字串 **1–7**（1=周一 … 7=周日）。
 
-当 `qualifiedCount ≥ minHistoryFlight`：
+- 示例：`"135"` → 周一、三、五；估周三航班时，历史只取周三样本。
+- `OperationDays.matches`：逐位集合匹配，非子串。
 
-1. 计算每条样本时长并升序排序。
-2. **奇数**个：取中间值。
-3. **偶数**个：中间两数整数平均 `(mid₁ + mid₂) / 2`（截断除法）。
+### 8. 中位数规则 / Median rule
 
-纳入**全部**合格样本，无截尾、无加权。
+当阶段 C 合格数 ≥ `minHistoryFlight`：
 
-## 结果与响应字段 / Outcomes and response fields
+1. 取本次扫描累计的合格样本（见 [§5.2 停止时机](#52-分页扫描)）。
+2. 计算各样本 `actualDuration`，升序排序。
+3. 奇数个：取中间值；偶数个：中间两数整数平均 `(mid₁ + mid₂) / 2`。
 
-| 结果 / Outcome | `source` | `flyingTime` | `sampleSize` | `confidence` |
-|----------------|----------|--------------|--------------|--------------|
-| 历史中位数 / Historical median | `HISTORY` | 中位数分钟 | 合格数 | `HIGH` |
-| 季节回退 / Seasonal fallback | `SEASONAL` | 季节分钟 | `0` | `NONE` |
-| 无季节航班 / No seasonal flight | `NONE` | `null` | `0` | `NONE` |
-| 历史不足且无季节时长 / Insufficient history | `NONE` | `null` | `0` | `NONE` |
+无截尾、无加权。
 
-说明 / Notes:
+### 9. 结果字段 / Outcome fields
 
-- `message` 仅供运维与日志，**非稳定 API 契约**。
-- 已弃用 `history` / `seasonal` 布尔字段；请用 `source`。
-- `flyingTime == null` 且 `source == NONE` 表示无估算。
-- 计算器内部 `NONE` 路径可能带非零 `qualifiedCount`；HTTP 响应中 `sampleSize` 恒为 `0`。
+| 结果 | `source` | `flyingTime` | `sampleSize` | `confidence` |
+|------|----------|--------------|--------------|--------------|
+| 历史中位数 | `HISTORY` | 中位数分钟 | 合格数 | `HIGH`¹ |
+| 季节回退 | `SEASONAL` | 季节分钟 | `0` | `NONE` |
+| 无季节航班 | `NONE` | `null` | `0` | `NONE` |
+| 历史不足且无季节时长 | `NONE` | `null` | `0` | `NONE` |
 
-## 配置参数 / Configuration parameters
+¹ **`confidence: HIGH` 不代表统计置信度高。** 仅表示 `source = HISTORY` 且合格样本数 ≥ `minHistoryFlight`（样本数达标）。不反映离散度、标准差或季节锚定强度。调用方勿将其等同于统计学意义上的「高置信」。
 
-绑定于 `EsttCalculationConfig`（`application.yml` / 环境变量）：
+- `message` 非稳定 API 契约。
+- 使用 `source`，勿依赖已弃用 `history` / `seasonal` 布尔字段。
 
-| 配置项 / Property | 环境变量 / Env | 默认 / Default | 校验 / Validation |
-|-------------------|----------------|----------------|-------------------|
-| `max-schedule-deviation` | `MAX_SCHEDULE_DEVIATION` | 120 | > 0 |
-| `max-flying-time-deviation` | `MAX_FLYING_TIME_DEVIATION` | 120 | > 0 |
-| `min-history-flight` | `MIN_HISTORY` | 20 | > 0 |
-| `history-start-offset-days` | `START_MINUS` | 60 | ≥ 0 |
-| `max-history-rows` | `MAX_HISTORY_ROWS` | 300 | > 0 |
-| `date-format` | — | `yyMMdd` | 非空（仅实现 `yyMMdd`） |
+### 10. 算法参数 / Algorithm parameters
 
-容差单位均为**分钟**。
+| 参数 | 环境变量 | 默认 | 校验 | 作用 |
+|------|----------|------|------|------|
+| `max-schedule-deviation` | `MAX_SCHEDULE_DEVIATION` | 120 | > 0 | 阶段 C 晚到上限（分钟） |
+| `max-flying-time-deviation` | `MAX_FLYING_TIME_DEVIATION` | 120 | > 0 | 阶段 B 相对季节时长（分钟） |
+| `min-history-flight` | `MIN_HISTORY` | 20 | > 0 | 历史中位数最低合格样本数 |
+| `max-history-rows` | `MAX_HISTORY_ROWS` | 300 | > 0 | 阶段一 raw 预算；扩展硬顶为 ×3 |
+| `min-flying-time` | `MIN_FLYING_TIME` | 30 | > 0 | 阶段 B 弱下界（仅 `flyingTime` 为 null） |
+| `max-flying-time` | `MAX_FLYING_TIME` | 600 | > `minFlyingTime` | 阶段 B 弱上界（仅 `flyingTime` 为 null） |
 
-## 缓存 / Caching
+单位均为分钟。扩展扫描硬顶 `maxHistoryRows × 3` 暂非独立配置项。
 
-`EsttService` 使用 Micronaut `@Cacheable`：
+### 11. 边界规则速查 / Boundary quick reference
 
-| 缓存名 / Cache | 方法 / Method | TTL（`application.yml`） | 内容 / Value |
-|----------------|---------------|---------------------------|--------------|
-| `active-season` | `cachedActiveSeason` | **1 小时 / 1h** | 激活航季元数据 |
-| `seasonal-flight` | `cachedSeasonalFlight` | **未声明**（Micronaut 默认） | 校验后的 `SeasonalFlight?` |
-| `history-flights` | `cachedHistoryFlights` | **4 小时 / 4h** | 过滤后历史列表 |
+| 规则 | 边界 |
+|------|------|
+| 时刻偏差（晚到） | 含等于：`actual − scheduled ≤ maxScheduleDeviation` |
+| 飞行时长 vs 季节 | 不含等于：`\|duration − seasonal\| < maxFlyingTimeDeviation` |
+| 历史窗口 | 排除目标日；`startDate = seasonStart` |
+| 历史星期 | 须等于目标 `flightDate` 星期 |
+| 季节段 | `START_DATE ≤ flightDate`；多段取最新 `START_DATE` |
+| 季节回退 | `flyingTime > 0` |
+| 中位数门槛 | 含等于：`qualifiedCount ≥ minHistoryFlight` |
 
-计算路径在 `calculateWithSeasonalFlight` 中直接调用 `historyFlightProvider.getHistoryFlights`（不经 `cachedHistoryFlights` 包装）；季节解析仍走季节缓存。
+### 12. 算例 / Worked example
 
-> **维护说明：** `seasonal-flight` 已标注 `@Cacheable` 但 `application.yml` 无 TTL；若需与 `history-flights` 同为 4 小时，请补充配置。
+目标：`MU9941`，2024-06-05（周三），季节 `operationDays = "135"`，`flyingTime = 100`，`seasonStart = 2024-03-31`，`seasonEnd = 2024-10-26`。
 
-## 可观测性 / Observability
+1. 季节匹配 → 有效。
+2. 窗口：`startDate = 2024-03-31`，`endDate = 2024-06-04`；仅周三历史行。
+3. 扫描累计 22 条阶段 C 合格样本 → 中位数 `95` 分钟，`HISTORY`。
+4. 若仅 15 条合格 → `SEASONAL` 100；若季节时长未配置 → `NONE`。
 
-计算路径历史扫描指标（Micrometer）：
+---
 
-| 指标 / Metric | 含义 / Meaning |
-|---------------|----------------|
-| `estt.history.calc.scan.raw_rows` | 扫描的原始行数 |
-| `estt.history.calc.scan.filtered_rows` | 通过阶段 B 的行数 |
-| `estt.history.calc.scan.qualified_rows` | 通过阶段 C 的合格数 |
-| `estt.history.calc.scan.calls` | 标签 `hit_scan_limit`、`extended_beyond_budget`、`qualified_sufficient` |
+## 附录 A — 实现说明 / Appendix A — Implementation
 
-当 `hitScanLimit` 且合格数 `< minHistoryFlight` 时，`EsttService` 记录 INFO 日志。
+### 输入校验路径
 
-Prometheus：`EstimateSource.SEASONAL` 映射为指标标签 `schedule`（非 `seasonal`）。
+| 路径 | 校验 |
+|------|------|
+| `GET /estt/flyTime/...` | HTTP 航班号正则 + `EsttService.parseFlightDate` + `validateInputs` |
+| 直接调用 `getSeasonalFlight` / `getPaginatedHistoryFlights` 等 | **不**经过 `validateInputs` |
 
-## 源码对照 / Source code map
+日期解析（`EsttService.parseFlightDate`）：恰好六位数字；`00`–`99` → `2000`–`2099`；非法日历拒绝。
 
-| 组件 / Component | 职责 / Responsibility |
-|------------------|----------------------|
-| `EsttController` | HTTP、航班号正则、日期解析 |
-| `EsttService` | 校验、缓存、编排、MDC/指标、响应映射 |
-| `HistoryFlightProvider` | 历史窗口、资格过滤、分页与扩展扫描 |
-| `FlyingTimeCalculator` | 时刻偏差、中位数、季节/NONE 分支 |
-| `OperationDays` | 运营日逐位解析与匹配 |
-| `SeasonRepository` | 季节 SQL；`INSTR` 预筛选；确定性 `ORDER BY` |
-| `HistoryFlightRepository` | 到港历史查询与分页 |
+### 缓存
 
-## 算例（简化）/ Worked example
+| 缓存 | 内容 | 主计算 | 分页历史 |
+|------|------|--------|----------|
+| `seasonal-flight` | 校验后季节行 | ✓ | ✓ |
 
-目标：`MU9941`，2024-06-05（周三，运营日 `3`）。
+主计算与分页历史：`cachedSeasonalFlight` → `historyFlightProvider`（不经历史列表缓存）。
 
-1. 季节行 `operationDays = "135"`，`flyingTime = 100`，航季 2024-03-31 … 2024-10-26 → **匹配**。
-2. 历史窗口：2024-01-30 … 2024-06-04。
-3. 扫描后 22 条合格样本 → 中位数例：`95` 分钟，`source: HISTORY`。
-4. 若仅 15 条合格 → 季节 `100`（`SEASONAL`）；若季节时长未配置 → `NONE`。
+### 源码对照
 
-## 调用方须知 / Consumer notes
+| 组件 | 职责 |
+|------|------|
+| `EsttController` | HTTP、航班号正则；日期委托 `parseFlightDate` |
+| `EsttService` | 解析、校验、缓存、编排、响应映射 |
+| `HistoryFlightProvider` | 历史窗口；主计算路径阶段 B/C 筛选与扫描停止；分页路径仅阶段 B |
+| `ScheduleDeviation` | 阶段 C 时刻偏差判定 |
+| `FlyingTimeCalculator` | 样本数判断、中位数、`HISTORY` / `SEASONAL` / `NONE` 决策 |
+| `OperationDays` | 运营日匹配 |
+| `SeasonRepository` | 季节 SQL |
+| `HistoryFlightRepository` | 历史 SQL 与分页 |
 
-- 使用 `source`（`HISTORY` / `SEASONAL` / `NONE`），勿依赖已弃用布尔字段。
-- `confidence: HIGH` 仅表示「历史来源且样本数 ≥ 门槛」，不表示统计离散度。
-- 分页 API 与计算路径过滤规则相同，但分页**不**做扩展扫描；`hasMore` 可能在触达 `maxHistoryRows` 时为 true。
+### 扫描元数据（实现）
+
+| 字段 | 含义 |
+|------|------|
+| `qualifiedFlights` | 通过阶段 C 的样本 |
+| `stageBRows` | 通过阶段 B 的行数 |
+| `qualifiedRows` | 通过阶段 C 的行数（与 `qualifiedFlights.size` 相同） |
+| `insufficientAfterBudget` | 阶段一预算用尽后合格样本仍不足（含扩展扫描后仍不足） |
+| `extendedScanUsed` | 阶段二**已启用**（不表示一定扫到硬顶） |
+
+---
+
+## 附录 B — 可观测性 / Appendix B — Observability
+
+| 指标 | 打点位置 | 含义 |
+|------|----------|------|
+| `estt.history.scan.raw_rows` | `HistoryFlightProvider` | 扫描原始行数 |
+| `estt.history.scan.stage_b_rows` | `HistoryFlightProvider` | 通过阶段 B 行数 |
+| `estt.history.scan.qualified_rows` | `HistoryFlightProvider` | 阶段 C 合格数 |
+| `estt.history.scan.extended_used` | `HistoryFlightProvider` | 是否启用扩展扫描 |
+| `estt.history.scan.calls` | `HistoryFlightProvider` | 标签：`insufficient_after_budget` |
+
+`EstimateSource.SEASONAL` 在 Prometheus 中映射为标签 `schedule`。

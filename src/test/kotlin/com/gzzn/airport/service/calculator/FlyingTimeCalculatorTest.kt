@@ -28,8 +28,9 @@ class FlyingTimeCalculatorTest :
                 maxFlyingTimeDeviation = 120,
                 minHistoryFlight = 20,
                 dateFormat = "yyMMdd",
-                historyStartOffsetDays = 60L,
                 maxHistoryRows = 300,
+                minFlyingTime = 30,
+                maxFlyingTime = 600,
             )
             calculator = FlyingTimeCalculator(meterRegistry, config)
         }
@@ -58,8 +59,6 @@ class FlyingTimeCalculatorTest :
                 result.flyingTime shouldBe 96L
                 result.qualifiedCount shouldBe config.minHistoryFlight
 
-                meterRegistry.summary("estt.history.calc.scan.qualified_rows").count() shouldBe 1
-                meterRegistry.counter("estt.history.calc.scan.calls", "qualified_sufficient", "true").count() shouldBe 1.0
                 meterRegistry.counter("estt.calculation.source", "source", "history").count() shouldBe 1.0
             }
 
@@ -121,83 +120,6 @@ class FlyingTimeCalculatorTest :
 
                 result.source shouldBe EstimateSource.NONE
                 result.flyingTime shouldBe null
-            }
-
-            it("accepts early arrivals within schedule deviation filter") {
-                val seasonalFlight = SeasonalFlight(
-                    flightNumber = "MU1004",
-                    operationDays = "1234567",
-                    flyingTime = 100,
-                    seasonStart = LocalDate.of(2024, 3, 31),
-                    seasonEnd = LocalDate.of(2024, 10, 26),
-                )
-                val date = LocalDate.of(2024, 6, 1)
-                val scheduled = LocalDateTime.of(date.year, date.monthValue, date.dayOfMonth, 12, 0)
-                val earlyArrival = HistoricalFlight(
-                    flightDate = date,
-                    previousDepartureTime = scheduled.minusMinutes(100),
-                    actualTime = scheduled.minusMinutes(30),
-                    scheduledTime = scheduled,
-                )
-                val historyFlights = List(config.minHistoryFlight) { earlyArrival }
-
-                val result = calculator.calculate(seasonalFlight, seasonalFlight.flightNumber, historyFlights)
-
-                result.source shouldBe EstimateSource.HISTORY
-            }
-
-            it("keeps flights exactly at max late schedule deviation") {
-                val seasonalFlight = SeasonalFlight(
-                    flightNumber = "MU1005",
-                    operationDays = "1234567",
-                    flyingTime = 100,
-                    seasonStart = LocalDate.of(2024, 3, 31),
-                    seasonEnd = LocalDate.of(2024, 10, 26),
-                )
-                val date = LocalDate.of(2024, 6, 1)
-                val scheduled = LocalDateTime.of(date.year, date.monthValue, date.dayOfMonth, 12, 0)
-                val thresholdLateArrival = HistoricalFlight(
-                    flightDate = date,
-                    previousDepartureTime = scheduled.plusMinutes(config.maxScheduleDeviation.toLong()).minusMinutes(100),
-                    actualTime = scheduled.plusMinutes(config.maxScheduleDeviation.toLong()),
-                    scheduledTime = scheduled,
-                )
-                val historyFlights = List(config.minHistoryFlight) { thresholdLateArrival }
-
-                val result = calculator.calculate(seasonalFlight, seasonalFlight.flightNumber, historyFlights)
-
-                result.source shouldBe EstimateSource.HISTORY
-                result.sampleSize shouldBe config.minHistoryFlight
-                result.flyingTime shouldBe 100L
-            }
-
-            it("rejects flights one minute beyond max late schedule deviation before counting history") {
-                val seasonalFlight = SeasonalFlight(
-                    flightNumber = "MU1006",
-                    operationDays = "1234567",
-                    flyingTime = 100,
-                    seasonStart = LocalDate.of(2024, 3, 31),
-                    seasonEnd = LocalDate.of(2024, 10, 26),
-                )
-                val qualifiedFlights = buildHistoryFlights(
-                    baseDate = LocalDate.of(2024, 6, 1),
-                    count = config.minHistoryFlight - 1,
-                    durationGenerator = { 100L },
-                )
-                val date = LocalDate.of(2024, 5, 1)
-                val scheduled = LocalDateTime.of(date.year, date.monthValue, date.dayOfMonth, 12, 0)
-                val tooLateFlight = HistoricalFlight(
-                    flightDate = date,
-                    previousDepartureTime = scheduled.plusMinutes(config.maxScheduleDeviation.toLong() + 1).minusMinutes(100),
-                    actualTime = scheduled.plusMinutes(config.maxScheduleDeviation.toLong() + 1),
-                    scheduledTime = scheduled,
-                )
-
-                val result = calculator.calculate(seasonalFlight, seasonalFlight.flightNumber, qualifiedFlights + tooLateFlight)
-
-                result.source shouldBe EstimateSource.SEASONAL
-                result.sampleSize shouldBe 0
-                result.flyingTime shouldBe seasonalFlight.flyingTime
             }
 
             it("uses truncated integer average for even-sized median") {

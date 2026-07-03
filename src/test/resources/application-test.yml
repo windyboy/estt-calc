@@ -21,8 +21,9 @@ estt:
     max-flying-time-deviation: 120
     min-history-flight: 20
     date-format: 'yyMMdd'
-    history-start-offset-days: 60
     max-history-rows: 300
+    min-flying-time: 30
+    max-flying-time: 600
   validation:
     flight-number-pattern: '^[A-Z]{2}[0-9]{3,4}$'
 

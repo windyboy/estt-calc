@@ -18,9 +18,9 @@ Local endpoints: `GET /estt/season`, `GET /estt/flyTime/{flightNumber}/{flightDa
 
 | 文档 / Document | 内容 / Contents |
 |-----------------|-----------------|
-| [docs/algorithm.md](docs/algorithm.md) | 计算步骤、过滤、边界、运营日编码（**中英双语**） |
-| [docs/api.md](docs/api.md) | REST 端点、响应字段、校验、错误（**中英双语**） |
-| [docs/code-map.md](docs/code-map.md) | 源码布局、关键文件、注释约定（**中英双语**） |
+| [docs/algorithm.md](docs/algorithm.md) | 计算步骤、过滤、边界、运营日编码 |
+| [docs/api.md](docs/api.md) | REST 端点、响应字段、校验、错误 |
+| [docs/code-map.md](docs/code-map.md) | 源码布局、关键文件、测试位置 |
 | [docs/development.md](docs/development.md) | 构建/测试流程、排障、已知限制 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
 
@@ -81,11 +81,12 @@ Environment variables (defaults in `application.yml`):
 | `MAX_SCHEDULE_DEVIATION` | Late schedule tolerance (minutes) | 120 |
 | `MAX_FLYING_TIME_DEVIATION` | Flying-time tolerance (strict `<`) | 120 |
 | `MIN_HISTORY` | Min qualified samples for median | 20 |
-| `START_MINUS` | History start offset (days) | 60 |
-| `MAX_HISTORY_ROWS` | Max rows scanned per history request | 300 |
+| `MIN_FLYING_TIME` | Min flying duration when seasonal time is null (minutes) | 30 |
+| `MAX_FLYING_TIME` | Max flying duration when seasonal time is null (minutes) | 600 |
+| `MAX_HISTORY_ROWS` | Initial raw scan budget; calculation path hard cap is 3× | 300 |
 | `FLIGHT_NUMBER_PATTERN` | Flight number regex | `^[A-Z]{2}[0-9]{3,4}$` |
 
-`yyMMdd` dates: strict six digits, years 00–99 → 2000–2099, JVM default timezone.
+`yyMMdd` dates: strict six digits, years 00–99 → 2000–2099; dates/times are interpreted in airport/business local time.
 
 ## Architecture
 
@@ -108,6 +109,7 @@ Shared service test fixtures: `EsttServiceTestSupport.kt`. Some integration test
 
 ## Version notes
 
+- **2026-07-03** — Algorithm hardening and simplification: season-start history window, weekday match, bounded extended scan, null-seasonal duration bounds, simplified scan/calculator responsibilities, `estt.history.scan.*` metrics.
 - **2026-07-01 (v4)** — Merged `HistoryPaginationScanner` into provider; slimmed `EsttService`; deduplicated tests; docs split into `docs/`. `./gradlew check` green.
 - **2026-07-01 (v3)** — ~18% main-source reduction; merged `EsttInputValidator`; trimmed verbose KDoc while keeping domain comments.
 - **v0.1.1** — API v2 (`source`, nullable `flyingTime`), median over qualified history, Micronaut 5 / JDK 25.

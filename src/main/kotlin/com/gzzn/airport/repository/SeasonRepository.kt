@@ -43,13 +43,15 @@ interface SeasonRepository {
                 and FLIGHT_NUMBER = :flightNumber
                 and INSTR(OPERATION_DAYS, :operationDay) > 0
                 and ARRI_OR_DEPT = :arriOrDept
-            order by seasonal_flight.START_DATE desc, seasonal_flight.FLIGHT_NUMBER
+                and seasonal_flight.START_DATE <= :flightDate
+            order by seasonal_flight.START_DATE desc
             fetch first 1 row only
         """,
     )
     fun getSeasonalArrivalFlight(
         flightNumber: String,
         operationDay: String,
+        flightDate: java.time.LocalDate,
         activeFlag: Int = ACTIVE_SEASON_FLAG,
         arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL,
     ): SeasonalFlight?

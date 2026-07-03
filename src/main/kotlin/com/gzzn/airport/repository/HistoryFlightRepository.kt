@@ -32,35 +32,6 @@ WHERE
   AND flight_date BETWEEN :startDate AND :endDate
   AND flight_date = TRUNC(SCHEDULED_DATETIME)
 ORDER BY flight_date DESC
-FETCH FIRST :maxRows ROWS ONLY
-  """,
-    )
-    fun getArrivalFlight(
-        flightNumber: String,
-        startDate: LocalDate,
-        endDate: LocalDate,
-        maxRows: Int = 300,
-        arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL,
-    ): List<HistoricalFlight>
-
-    @Query(
-        """
-SELECT
-  PRE_DEPT_DATETIME_ACTUAL previous_departure_time,
-  ACTUAL_DATETIME actual_time,
-  flight_date,
-  SCHEDULED_DATETIME scheduled_time
-FROM
-  FIMS_FLIGHTSCHD_HST
-WHERE
-  ACTUAL_DATETIME IS NOT NULL
-  AND PRE_DEPT_DATETIME_ACTUAL IS NOT NULL
-  AND PRE_DEPT_DATETIME_ACTUAL < ACTUAL_DATETIME
-  AND ARRI_OR_DEPT = :arriOrDept
-  AND flight_number = :flightNumber
-  AND flight_date BETWEEN :startDate AND :endDate
-  AND flight_date = TRUNC(SCHEDULED_DATETIME)
-ORDER BY flight_date DESC
 OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
   """,
     )

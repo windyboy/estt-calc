@@ -55,7 +55,7 @@ class EsttServiceErrorTest :
             }
 
             it("should handle database error in getSeasonalFlight") {
-                every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } throws
+                every { seasonRepository.getSeasonalArrivalFlight(any(), any(), any()) } throws
                     SQLException("Database unavailable")
 
                 val result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31))
@@ -75,7 +75,7 @@ class EsttServiceErrorTest :
                     LocalDate.of(2021, 12, 31),
                 )
 
-                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns flight
+                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns flight
                 historyFlightRepository.mockArrivalFlightPages(emptyList())
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
@@ -94,7 +94,7 @@ class EsttServiceErrorTest :
                     LocalDate.of(2021, 12, 31),
                 )
 
-                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns flight
+                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns flight
 
                 val result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 12, 31))
 
@@ -105,17 +105,6 @@ class EsttServiceErrorTest :
         }
 
         describe("edge case scenarios") {
-            it("should handle very old historical data query") {
-                val veryOldDate = LocalDate.of(2000, 1, 1)
-
-                every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } returns null
-
-                val result = esttService.getHistoryFlights("MU9941", veryOldDate)
-
-                result.isSuccess.shouldBeTrue()
-                result.getOrNull() shouldBe emptyList()
-            }
-
             it("should reject far future date query") {
                 val futureDate = LocalDate.of(2030, 12, 31)
 
@@ -134,7 +123,7 @@ class EsttServiceErrorTest :
             }
 
             it("should record failure metrics when calculation fails") {
-                every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } throws
+                every { seasonRepository.getSeasonalArrivalFlight(any(), any(), any()) } throws
                     SQLException("DB Error")
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
@@ -155,7 +144,7 @@ class EsttServiceErrorTest :
                     LocalDate.of(2021, 12, 31),
                 )
 
-                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns flight
+                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns flight
                 historyFlightRepository.mockArrivalFlightPages(emptyList())
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
@@ -169,18 +158,8 @@ class EsttServiceErrorTest :
         }
 
         describe("flatMap error propagation") {
-            it("should propagate seasonal flight lookup failure to history flights") {
-                every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } throws
-                    SQLException("DB Error")
-
-                val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
-
-                result.isFailure.shouldBeTrue()
-                result.exceptionOrNull().shouldBeInstanceOf<SQLException>()
-            }
-
             it("should propagate seasonal flight lookup failure to calculate") {
-                every { seasonRepository.getSeasonalArrivalFlight(any(), any()) } throws
+                every { seasonRepository.getSeasonalArrivalFlight(any(), any(), any()) } throws
                     RuntimeException("Unexpected error")
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))

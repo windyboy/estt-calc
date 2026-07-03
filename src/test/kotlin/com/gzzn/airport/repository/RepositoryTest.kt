@@ -38,7 +38,7 @@ class RepositoryTest : DescribeSpec() {
 
             it("should get seasonal arrival flight") {
                 shouldNotThrowAny {
-                    seasonRepository.getSeasonalArrivalFlight("MU9941", "1")
+                    seasonRepository.getSeasonalArrivalFlight("MU9941", "1", LocalDate.now())
                 }
             }
         }
@@ -49,7 +49,7 @@ class RepositoryTest : DescribeSpec() {
                 val endDate = LocalDate.now()
 
                 shouldNotThrowAny {
-                    val flights = historyFlightRepository.getArrivalFlight("MU9941", startDate, endDate, 100)
+                    val flights = historyFlightRepository.getArrivalFlightPage("MU9941", startDate, endDate, 0, 100)
                     flights.shouldNotBeNull()
                 }
             }
@@ -59,7 +59,7 @@ class RepositoryTest : DescribeSpec() {
                 val endDate = LocalDate.now()
 
                 shouldNotThrowAny {
-                    val flights = historyFlightRepository.getArrivalFlight("MU9941", startDate, endDate, 10)
+                    val flights = historyFlightRepository.getArrivalFlightPage("MU9941", startDate, endDate, 0, 10)
                     flights.shouldNotBeNull()
                     flights.size shouldBeLessThanOrEqualTo 10
                 }

@@ -35,8 +35,9 @@ fun defaultEsttConfig(): EsttCalculationConfig = EsttCalculationConfig(
     maxFlyingTimeDeviation = 120,
     minHistoryFlight = 20,
     dateFormat = "yyMMdd",
-    historyStartOffsetDays = 60L,
     maxHistoryRows = 300,
+    minFlyingTime = 30,
+    maxFlyingTime = 600,
 )
 
 fun createEsttServiceWithConfig(
@@ -46,7 +47,7 @@ fun createEsttServiceWithConfig(
     config: EsttCalculationConfig,
 ): EsttService {
     val flyingTimeCalculator = FlyingTimeCalculator(meterRegistry, config)
-    val historyFlightProvider = HistoryFlightProvider(historyFlightRepository, flyingTimeCalculator, meterRegistry, config)
+    val historyFlightProvider = HistoryFlightProvider(historyFlightRepository, meterRegistry, config)
     return EsttService(seasonRepository, historyFlightProvider, flyingTimeCalculator, meterRegistry, config)
 }
 

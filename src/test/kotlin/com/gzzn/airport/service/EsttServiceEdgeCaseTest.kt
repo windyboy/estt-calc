@@ -2,7 +2,6 @@ package com.gzzn.airport.service
 
 import com.gzzn.airport.config.EsttCalculationConfig
 import com.gzzn.airport.model.EstimateSource
-import com.gzzn.airport.model.HistoricalFlight
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.HistoryFlightRepository
 import com.gzzn.airport.repository.SeasonRepository
@@ -16,7 +15,6 @@ import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.MeterRegistry
 import io.mockk.every
 import java.time.LocalDate
-import java.time.LocalDateTime
 
 class EsttServiceEdgeCaseTest :
     DescribeSpec({
@@ -47,7 +45,7 @@ class EsttServiceEdgeCaseTest :
                 )
                 val historyFlights = createHistoryFlights(20, LocalDate.of(2021, 12, 31))
 
-                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
+                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns seasonalFlight
                 historyFlightRepository.mockArrivalFlightPages(historyFlights)
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
@@ -68,7 +66,7 @@ class EsttServiceEdgeCaseTest :
                 )
                 val historyFlights = createHistoryFlights(19, LocalDate.of(2021, 12, 31))
 
-                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
+                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns seasonalFlight
                 historyFlightRepository.mockArrivalFlightPages(historyFlights)
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
@@ -86,7 +84,7 @@ class EsttServiceEdgeCaseTest :
                     LocalDate.of(2021, 12, 31),
                 )
 
-                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
+                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns seasonalFlight
                 historyFlightRepository.mockArrivalFlightPages(emptyList())
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
@@ -109,7 +107,7 @@ class EsttServiceEdgeCaseTest :
                     LocalDate.of(2021, 12, 31),
                 )
 
-                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "1") } returns seasonalFlight
+                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "1", any()) } returns seasonalFlight
 
                 val result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 1, 4)) // Monday
 
@@ -126,146 +124,12 @@ class EsttServiceEdgeCaseTest :
                     LocalDate.of(2021, 12, 31),
                 )
 
-                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "1") } returns seasonalFlight
+                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "1", any()) } returns seasonalFlight
 
                 val result = esttService.getSeasonalFlight("MU9941", LocalDate.of(2021, 1, 4)) // Monday (day 1)
 
                 result.isSuccess.shouldBeTrue()
                 result.getOrNull().shouldBeNull()
-            }
-        }
-
-        describe("history flight filtering") {
-            it("should filter by operation day mismatch") {
-                val seasonalFlight = SeasonalFlight(
-                    "MU9941",
-                    "246",
-                    90L,
-                    LocalDate.of(2021, 3, 28),
-                    LocalDate.of(2021, 12, 31),
-                )
-
-                val historyFlights = listOf(
-                    HistoricalFlight(
-                        LocalDate.of(2021, 12, 27),
-                        LocalDateTime.of(2021, 12, 27, 10, 0),
-                        LocalDateTime.of(2021, 12, 27, 11, 30),
-                        LocalDateTime.of(2021, 12, 27, 11, 0),
-                    ),
-                    HistoricalFlight(
-                        LocalDate.of(2021, 12, 28),
-                        LocalDateTime.of(2021, 12, 28, 10, 0),
-                        LocalDateTime.of(2021, 12, 28, 11, 30),
-                        LocalDateTime.of(2021, 12, 28, 11, 0),
-                    ),
-                )
-
-                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "2") } returns seasonalFlight
-                historyFlightRepository.mockArrivalFlightPages(historyFlights)
-
-                val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 28))
-
-                result.isSuccess.shouldBeTrue()
-                result.getOrNull()!!.size shouldBe 1
-            }
-
-            it("should filter by excessive delay") {
-                val seasonalFlight = SeasonalFlight(
-                    "MU9941",
-                    "1234567",
-                    90L,
-                    LocalDate.of(2021, 3, 28),
-                    LocalDate.of(2021, 12, 31),
-                )
-
-                val historyFlights = listOf(
-                    HistoricalFlight(
-                        LocalDate.of(2021, 12, 31),
-                        LocalDateTime.of(2021, 12, 31, 10, 0),
-                        LocalDateTime.of(2021, 12, 31, 11, 30),
-                        LocalDateTime.of(2021, 12, 31, 11, 0),
-                    ),
-                    HistoricalFlight(
-                        LocalDate.of(2021, 12, 24),
-                        LocalDateTime.of(2021, 12, 24, 10, 0),
-                        LocalDateTime.of(2021, 12, 24, 14, 0),
-                        LocalDateTime.of(2021, 12, 24, 11, 0),
-                    ),
-                )
-
-                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
-                historyFlightRepository.mockArrivalFlightPages(historyFlights)
-
-                val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
-
-                result.isSuccess.shouldBeTrue()
-                result.getOrNull()!!.size shouldBe 1
-            }
-
-            it("should filter by flying time deviation") {
-                val seasonalFlight = SeasonalFlight(
-                    "MU9941",
-                    "1234567",
-                    90L,
-                    LocalDate.of(2021, 3, 28),
-                    LocalDate.of(2021, 12, 31),
-                )
-
-                val historyFlights = listOf(
-                    HistoricalFlight(
-                        LocalDate.of(2021, 12, 31),
-                        LocalDateTime.of(2021, 12, 31, 10, 0),
-                        LocalDateTime.of(2021, 12, 31, 11, 30),
-                        LocalDateTime.of(2021, 12, 31, 11, 30),
-                    ),
-                    HistoricalFlight(
-                        LocalDate.of(2021, 12, 24),
-                        LocalDateTime.of(2021, 12, 24, 10, 0),
-                        LocalDateTime.of(2021, 12, 24, 14, 10),
-                        LocalDateTime.of(2021, 12, 24, 14, 10),
-                    ),
-                )
-
-                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
-                historyFlightRepository.mockArrivalFlightPages(historyFlights)
-
-                val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
-
-                result.isSuccess.shouldBeTrue()
-                result.getOrNull()!!.size shouldBe 1
-            }
-
-            it("should filter by invalid time order") {
-                val seasonalFlight = SeasonalFlight(
-                    "MU9941",
-                    "1234567",
-                    90L,
-                    LocalDate.of(2021, 3, 28),
-                    LocalDate.of(2021, 12, 31),
-                )
-
-                val historyFlights = listOf(
-                    HistoricalFlight(
-                        LocalDate.of(2021, 12, 31),
-                        LocalDateTime.of(2021, 12, 31, 10, 0),
-                        LocalDateTime.of(2021, 12, 31, 11, 30),
-                        LocalDateTime.of(2021, 12, 31, 11, 0),
-                    ),
-                    HistoricalFlight(
-                        LocalDate.of(2021, 12, 24),
-                        LocalDateTime.of(2021, 12, 24, 11, 30),
-                        LocalDateTime.of(2021, 12, 24, 10, 0),
-                        LocalDateTime.of(2021, 12, 24, 11, 0),
-                    ),
-                )
-
-                every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5") } returns seasonalFlight
-                historyFlightRepository.mockArrivalFlightPages(historyFlights)
-
-                val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
-
-                result.isSuccess.shouldBeTrue()
-                result.getOrNull()!!.size shouldBe 1
             }
         }
 
