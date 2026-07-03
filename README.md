@@ -33,7 +33,7 @@ The legacy system queries history by flight number only; this service matches op
 ## Implementation (high level)
 
 - `EsttService` — validation, cache, orchestration, metrics, responses
-- `HistoryFlightProvider` — history window, filtering, paginated scan
+- `HistoryFlightProvider` — history window, filtering, bounded scan
 - `FlyingTimeCalculator` — median, seasonal fallback, no-estimate branch
 
 Details: [docs/algorithm.md](docs/algorithm.md) and [docs/code-map.md](docs/code-map.md).
@@ -83,7 +83,7 @@ Environment variables (defaults in `application.yml`):
 | `MIN_HISTORY` | Min qualified samples for median | 20 |
 | `MIN_FLYING_TIME` | Min flying duration when seasonal time is null (minutes) | 30 |
 | `MAX_FLYING_TIME` | Max flying duration when seasonal time is null (minutes) | 600 |
-| `MAX_HISTORY_ROWS` | Initial raw scan budget; calculation path hard cap is 3× | 300 |
+| `MAX_HISTORY_ROWS` | Max raw history rows per bounded scan (calculation and history API) | 300 |
 | `FLIGHT_NUMBER_PATTERN` | Flight number regex | `^[A-Z]{2}[0-9]{3,4}$` |
 
 `yyMMdd` dates: strict six digits, years 00–99 → 2000–2099; dates/times are interpreted in airport/business local time.
@@ -109,7 +109,7 @@ Shared service test fixtures: `EsttServiceTestSupport.kt`. Some integration test
 
 ## Version notes
 
-- **2026-07-03** — Algorithm hardening and simplification: season-start history window, weekday match, bounded extended scan, null-seasonal duration bounds, simplified scan/calculator responsibilities, `estt.history.scan.*` metrics.
+- **2026-07-03** — Algorithm hardening and simplification: season-start history window, weekday match, single bounded scan (no pagination or extended scan), null-seasonal duration bounds, simplified scan/calculator responsibilities, `estt.history.scan.*` metrics.
 - **2026-07-01 (v4)** — Merged `HistoryPaginationScanner` into provider; slimmed `EsttService`; deduplicated tests; docs split into `docs/`. `./gradlew check` green.
 - **2026-07-01 (v3)** — ~18% main-source reduction; merged `EsttInputValidator`; trimmed verbose KDoc while keeping domain comments.
 - **v0.1.1** — API v2 (`source`, nullable `flyingTime`), median over qualified history, Micronaut 5 / JDK 25.

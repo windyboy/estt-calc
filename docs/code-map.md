@@ -29,18 +29,18 @@ src/main/kotlin/com/gzzn/airport/
 
 | 文件 / File | 约行数 | 阅读目的 / Read for |
 |-------------|--------|---------------------|
-| `EsttService.kt` | ~270 | 端到端：校验 → 季节 → 历史 → 计算 → 响应 |
-| `HistoryFlightProvider.kt` | ~280 | 历史窗口、阶段 B/C 筛选、分页与扩展扫描 |
+| `EsttService.kt` | ~260 | 端到端：校验 → 季节 → 历史 → 计算 → 响应 |
+| `HistoryFlightProvider.kt` | ~190 | 历史窗口、阶段 B/C 筛选、单次有界历史查询 |
 | `FlyingTimeCalculator.kt` | ~120 | 已合格样本的中位数与决策分支 |
 | `EsttController.kt` | ~240 | HTTP 映射与 OpenAPI |
 | `OperationDays.kt` | 小 | 运营日编码与匹配 |
 | `SeasonRepository.kt` | 小 | `INSTR` 预筛选；确定性 `ORDER BY` |
-| `HistoryFlightRepository.kt` | 小 | 历史查询与分页 SQL |
+| `HistoryFlightRepository.kt` | 小 | 历史有界查询 SQL |
 
 ## 源码中的领域注释 / Domain comments in source
 
 - **EsttService**：`yyMMdd` 解析；`INSTR` + 航季边界复核；`SEASONAL` → 指标标签 `schedule`
-- **HistoryFlightProvider**：排除目标日；阶段 B/C 筛选（主计算）；分页 API 仅阶段 B；飞行时长弱约束为闭区间 `[minFlyingTime, maxFlyingTime]`
+- **HistoryFlightProvider**：排除目标日；阶段 B/C 筛选（主计算）；历史查询 API 仅阶段 B；飞行时长弱约束为闭区间 `[minFlyingTime, maxFlyingTime]`
 - **ScheduleDeviation**：早到保留；晚到偏差含等于阈值
 - **FlyingTimeCalculator**：偶数样本整数中位数；季节/无估算回退
 - **OperationDays**：逐位匹配、非法字符处理

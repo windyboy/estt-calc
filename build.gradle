@@ -127,6 +127,12 @@ tasks.withType(Test).configureEach {
     failOnNoDiscoveredTests = false
 }
 
+// Test sources have no KSP annotations; skip kspTestKotlin to avoid flaky
+// NoSuchFileException on build/generated/ksp/test after `gradle clean`.
+gradle.projectsEvaluated {
+    tasks.findByName('kspTestKotlin')?.enabled = false
+}
+
 tasks.register('printKlsClasspath') {
     group = 'ide'
     description = 'Prints dependency JARs for the Kotlin Language Server (kls-classpath script)'

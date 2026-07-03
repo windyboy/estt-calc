@@ -5,7 +5,7 @@ import com.gzzn.airport.model.EstimateSource
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.HistoryFlightRepository
 import com.gzzn.airport.repository.SeasonRepository
-import com.gzzn.airport.service.mockArrivalFlightPages
+import com.gzzn.airport.service.mockArrivalFlights
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
@@ -46,7 +46,7 @@ class EsttServiceEdgeCaseTest :
                 val historyFlights = createHistoryFlights(20, LocalDate.of(2021, 12, 31))
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns seasonalFlight
-                historyFlightRepository.mockArrivalFlightPages(historyFlights)
+                historyFlightRepository.mockArrivalFlights(historyFlights)
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
 
@@ -67,7 +67,7 @@ class EsttServiceEdgeCaseTest :
                 val historyFlights = createHistoryFlights(19, LocalDate.of(2021, 12, 31))
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns seasonalFlight
-                historyFlightRepository.mockArrivalFlightPages(historyFlights)
+                historyFlightRepository.mockArrivalFlights(historyFlights)
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
 
@@ -85,7 +85,7 @@ class EsttServiceEdgeCaseTest :
                 )
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns seasonalFlight
-                historyFlightRepository.mockArrivalFlightPages(emptyList())
+                historyFlightRepository.mockArrivalFlights(emptyList())
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
 

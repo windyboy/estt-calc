@@ -17,7 +17,7 @@ import kotlin.math.abs
  * Flying-time estimation and decision branches from pre-qualified historical samples.
  *
  * 业务规则见 docs/algorithm.md §8。
- * 样本筛选（阶段 B/C、扩展扫描）由 [com.gzzn.airport.service.history.HistoryFlightProvider] 完成；
+ * 样本筛选（阶段 B/C）由 [com.gzzn.airport.service.history.HistoryFlightProvider] 完成；
  * 本类仅接收其输出的合格列表，按样本数门槛在三种结果间选择：
  * - **HISTORY**（§8.1）：样本数 ≥ [EsttCalculationConfig.minHistoryFlight] → 飞行时长中位数
  * - **SEASONAL**（§8.2）：样本不足且季节计划时长有效（> 0）→ 采用计划时长

@@ -10,7 +10,7 @@ import java.time.LocalDate
 interface HistoryFlightRepository {
     companion object {
         const val ARRI_OR_DEPT_ARRIVAL = 'A'
-        const val ARRIVAL_FLIGHT_PAGE_SQL = """
+        const val ARRIVAL_FLIGHTS_SQL = """
 SELECT
   previous_departure_time,
   actual_time,
@@ -35,21 +35,19 @@ FROM (
     AND flight_number = :flightNumber
     AND flight_date BETWEEN :startDate AND :endDate
 ) paged
-WHERE rn > :offset
-  AND rn <= (:offset + :limit)
+WHERE rn <= :maxRows
 ORDER BY rn
   """
     }
 
     // BETWEEN 两端包含；调用方以目标日前一天为 endDate，排除自身样本。
     // BETWEEN is inclusive; callers pass flightDate - 1 as endDate to exclude the target flight.
-    @Query(ARRIVAL_FLIGHT_PAGE_SQL)
-    fun getArrivalFlightPage(
+    @Query(ARRIVAL_FLIGHTS_SQL)
+    fun getArrivalFlights(
         flightNumber: String,
         startDate: LocalDate,
         endDate: LocalDate,
-        offset: Int,
-        limit: Int,
+        maxRows: Int,
         arriOrDept: Char = ARRI_OR_DEPT_ARRIVAL,
     ): List<HistoricalFlight>
 }

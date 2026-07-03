@@ -5,12 +5,15 @@
 ### 算法 / Algorithm
 
 - 历史窗口固定 `startDate = seasonStart`；移除无效配置 `START_MINUS`。
-- `HistoryFlightProvider` 负责主计算阶段 B/C 筛选与扫描停止（分页历史接口仅阶段 B）；`FlyingTimeCalculator` 仅处理已合格样本。
-- `HistoryFlightScan` 精简为 `qualifiedFlights` 与扫描元数据：`stageBRows`、`qualifiedRows`、`insufficientAfterBudget`、`extendedScanUsed`。
+- `HistoryFlightProvider` 负责主计算阶段 B/C 筛选与有界历史查询（历史查询接口仅阶段 B）；`FlyingTimeCalculator` 仅处理已合格样本。
+- 主计算与历史查询均改为**单次有界 SQL 读取**（`MAX_HISTORY_ROWS`）；移除分页翻扫、达标提前停与扩展扫描（原 `×3` 硬顶）。
+- 历史查询 API 由 `PaginatedHistoryResponse`（`offset`/`limit`/`hasMore`）改为 `HistoryResponse`（`items`/`totalFiltered`/`rawScanned`/`capped`）。
+- `HistoryFlightScan` 精简为 `qualifiedFlights` 与扫描元数据：`stageBRows`、`qualifiedRows`、`insufficientAfterCap`（替代 `extendedScanUsed` / `insufficientAfterBudget`）。
 
 ### 可观测性 / Observability
 
-- 历史扫描指标统一为 `estt.history.scan.*`（`raw_rows`、`stage_b_rows`、`qualified_rows`、`extended_used`、`calls`）。
+- 历史扫描指标统一为 `estt.history.scan.*`（`raw_rows`、`stage_b_rows`、`qualified_rows`、`calls` 含 `insufficient_after_cap` 标签）。
+- 历史查询指标统一为 `estt.history.*`（`calls`、`items`、`filtered`、`raw_rows`，含 `capped` 标签）；移除 `estt.history.pagination.*` 与 `estt.history.scan.extended_used`。
 - 移除未实现的 `estt.rate-limiting` 配置项。
 
 ### 文档 / Documentation
@@ -29,7 +32,7 @@
 |---|------|----------|
 | 1 | 历史混入其它运营日 | 历史星期须等于目标 `flightDate` 星期 |
 | 2 | 窗口早于航季 | `startDate = seasonStart` |
-| 3 | 扫描无界 / 不提前停 | 阶段一达标即停（批次后判断）；阶段二硬顶 `×3` |
+| 3 | 扫描无界 / 不提前停 | ~~阶段一达标即停；阶段二硬顶 `×3`~~ → **2026-07-03 简化**：单次有界读取 `MAX_HISTORY_ROWS`，无提前停与扩展扫描 |
 | 4 | `flyingTime` 为 null 无约束 | 弱约束 `[MIN_FLYING_TIME, MAX_FLYING_TIME]` |
 | 5 | 空窗口 | `startDate > endDate` 时跳过历史 |
 | 6 | 季节多段误选 | `START_DATE ≤ flightDate`；取最新已生效段 |

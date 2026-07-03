@@ -6,9 +6,9 @@ import com.gzzn.airport.model.Confidence
 import com.gzzn.airport.model.EstimateSource
 import com.gzzn.airport.model.FlightSeason
 import com.gzzn.airport.model.FlyingTimeResponse
+import com.gzzn.airport.model.HistoryResponse
 import com.gzzn.airport.model.NoEstimateReason
 import com.gzzn.airport.model.OperationDays
-import com.gzzn.airport.model.PaginatedHistoryResponse
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.SeasonRepository
 import com.gzzn.airport.service.calculator.FlyingTimeCalculator
@@ -43,12 +43,11 @@ open class EsttService(
 
     init {
         log.info(
-            "EsttService initialized: maxScheduleDeviation={} maxFlyingTimeDeviation={} minHistoryFlight={} maxHistoryRows={} maxRawScanRows={} minFlyingTime={} maxFlyingTime={} dateFormat={}",
+            "EsttService initialized: maxScheduleDeviation={} maxFlyingTimeDeviation={} minHistoryFlight={} maxHistoryRows={} minFlyingTime={} maxFlyingTime={} dateFormat={}",
             config.maxScheduleDeviation,
             config.maxFlyingTimeDeviation,
             config.minHistoryFlight,
             config.maxHistoryRows,
-            config.maxRawScanRows,
             config.minFlyingTime,
             config.maxFlyingTime,
             config.dateFormat,
@@ -121,39 +120,30 @@ open class EsttService(
     open fun getSeasonalFlight(flightNumber: String, flightDate: LocalDate): Result<SeasonalFlight?> =
         catching({ cachedSeasonalFlight(flightNumber, flightDate) }, "Error finding seasonal flight for $flightNumber on $flightDate")
 
-    open fun getPaginatedHistoryFlights(
-        flightNumber: String,
-        flightDate: LocalDate,
-        offset: Int,
-        limit: Int,
-    ): Result<PaginatedHistoryResponse> = catching({
+    open fun getHistoryFlights(flightNumber: String, flightDate: LocalDate): Result<HistoryResponse> = catching({
         val seasonalFlight = cachedSeasonalFlight(flightNumber, flightDate)
-            ?: return@catching PaginatedHistoryResponse(emptyList(), 0, offset, limit, false)
+            ?: return@catching HistoryResponse(emptyList(), 0, 0, false)
 
-        val paginated = historyFlightProvider.getPaginatedHistory(seasonalFlight, flightDate, offset, limit)
+        val history = historyFlightProvider.getHistory(seasonalFlight, flightDate)
         log.debug(
-            "Paginated history for {}: returned={}, totalFiltered={}, hasMore={}, offset={}, limit={}, capped={}",
+            "History for {}: returned={}, totalFiltered={}, rawScanned={}, capped={}",
             seasonalFlight.flightNumber,
-            paginated.items.size,
-            paginated.totalFiltered,
-            paginated.hasMore,
-            offset,
-            limit,
-            paginated.totalFiltered >= config.maxHistoryRows,
+            history.items.size,
+            history.totalFiltered,
+            history.rawScanned,
+            history.capped,
         )
-        if (paginated.hasMore || paginated.totalFiltered >= config.maxHistoryRows) {
+        if (history.capped) {
             log.info(
-                "History pagination truncated for {}: hasMore={}, filtered={}, offset={}, limit={}, maxRows={}",
+                "History query capped for {}: filtered={}, rawScanned={}, maxRows={}",
                 seasonalFlight.flightNumber,
-                paginated.hasMore,
-                paginated.totalFiltered,
-                offset,
-                limit,
+                history.totalFiltered,
+                history.rawScanned,
                 config.maxHistoryRows,
             )
         }
-        paginated
-    }, "Error getting paginated history flights for $flightNumber on $flightDate")
+        history
+    }, "Error getting history flights for $flightNumber on $flightDate")
 
     open fun calculate(flightNumber: String, flightDate: LocalDate): Result<FlyingTimeResponse> {
         validateInputs(flightNumber, flightDate)
@@ -226,13 +216,13 @@ open class EsttService(
         historyFlightProvider.getHistoryFlights(seasonalFlight, flightDate)
     }, "Error getting history flights with seasonal flight for $flightDate").map { scan ->
         val result = flyingTimeCalculator.calculate(seasonalFlight, flightNumber, scan.qualifiedFlights)
-        if (scan.insufficientAfterBudget &&
+        if (scan.insufficientAfterCap &&
             result.qualifiedCount < config.minHistoryFlight &&
             result.source != EstimateSource.HISTORY
         ) {
             log.info(
-                "History scan ended without enough qualified samples: rawCap={}, raw={}, filtered={}, qualified={}",
-                config.maxRawScanRows,
+                "History scan reached cap without enough qualified samples: maxRows={}, raw={}, filtered={}, qualified={}",
+                config.maxHistoryRows,
                 scan.rawRows,
                 scan.stageBRows,
                 result.qualifiedCount,

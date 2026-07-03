@@ -13,12 +13,11 @@ import io.mockk.mockk
 import java.time.LocalDate
 import java.time.LocalDateTime
 
-fun HistoryFlightRepository.mockArrivalFlightPages(vararg pages: List<HistoricalFlight>) {
+fun HistoryFlightRepository.mockArrivalFlights(vararg pages: List<HistoricalFlight>) {
     val allRows = pages.flatMap { it }
-    every { getArrivalFlightPage(any(), any(), any(), any(), any(), any()) } answers {
-        val offset = invocation.args[3] as Int
-        val limit = invocation.args[4] as Int
-        allRows.drop(offset).take(limit)
+    every { getArrivalFlights(any(), any(), any(), any(), any()) } answers {
+        val maxRows = invocation.args[3] as Int
+        allRows.take(maxRows)
     }
 }
 

@@ -1,7 +1,6 @@
 package com.gzzn.airport.repository
 
 import io.kotest.core.spec.style.DescribeSpec
-import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import java.sql.Date
 import java.sql.DriverManager
@@ -9,35 +8,31 @@ import java.time.LocalDate
 
 class RepositoryTest :
     DescribeSpec({
-        describe("HistoryFlightRepository H2 pagination SQL") {
-            it("executes row-number pagination and returns the first page in stable descending order") {
-                queryArrivalFlightDates(offset = 0, limit = 2) shouldBe listOf(
+        describe("HistoryFlightRepository H2 bounded SQL") {
+            it("executes row-number bounded query and returns rows in stable descending order") {
+                queryArrivalFlightDates(maxRows = 2) shouldBe listOf(
                     LocalDate.of(2021, 12, 24),
                     LocalDate.of(2021, 12, 17),
                 )
             }
 
-            it("executes row-number pagination with a non-zero offset") {
-                val flightDates = queryArrivalFlightDates(offset = 1, limit = 1)
-
-                flightDates shouldHaveSize 1
-                flightDates.single() shouldBe LocalDate.of(2021, 12, 17)
+            it("respects maxRows") {
+                queryArrivalFlightDates(maxRows = 1) shouldBe listOf(LocalDate.of(2021, 12, 24))
             }
         }
     })
 
-private fun queryArrivalFlightDates(offset: Int, limit: Int): List<LocalDate> {
+private fun queryArrivalFlightDates(maxRows: Int): List<LocalDate> {
     DriverManager.getConnection(H2_URL, "sa", "").use { connection ->
-        connection.prepareStatement(toJdbcSql(HistoryFlightRepository.ARRIVAL_FLIGHT_PAGE_SQL)).use { statement ->
-            val params = jdbcParameterNames(HistoryFlightRepository.ARRIVAL_FLIGHT_PAGE_SQL)
+        connection.prepareStatement(toJdbcSql(HistoryFlightRepository.ARRIVAL_FLIGHTS_SQL)).use { statement ->
+            val params = jdbcParameterNames(HistoryFlightRepository.ARRIVAL_FLIGHTS_SQL)
             params.forEachIndexed { index, name ->
                 val value = when (name) {
                     "arriOrDept" -> HistoryFlightRepository.ARRI_OR_DEPT_ARRIVAL.toString()
                     "flightNumber" -> "MU9941"
                     "startDate" -> Date.valueOf(LocalDate.of(2021, 12, 1))
                     "endDate" -> Date.valueOf(LocalDate.of(2021, 12, 31))
-                    "offset" -> offset
-                    "limit" -> limit
+                    "maxRows" -> maxRows
                     else -> error("Unexpected SQL parameter: $name")
                 }
                 statement.setObject(index + 1, value)

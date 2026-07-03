@@ -17,25 +17,21 @@ Returns the active `FlightSeason`, or **404** if none.
 - `flightDate`：`yyMMdd`（例 `211231`）
 - **200**：`SeasonalFlight` | **404**：未找到 | **400**：非法输入 | **500**：数据库错误
 
-### `GET /estt/history/{flightNumber}/{flightDate}{?limit,offset}`
+### `GET /estt/history/{flightNumber}/{flightDate}`
 
-经「基本有效」与「与目标航班可比」两道筛选后的到港历史，分页返回（**不含**到港时刻可信筛选；见 [algorithm.md 附录](algorithm.md#附与历史查询接口的差异)）。
+经「基本有效」与「与目标航班可比」两道筛选后的到港历史，一次性有界返回（**不含**到港时刻可信筛选；见 [algorithm.md 附录](algorithm.md#附与历史查询接口的差异)）。
 
-Paginated historical arrivals after basic-valid and comparability filtering (**excludes** arrival-time credibility filter; see [algorithm.md appendix](algorithm.md#附与历史查询接口的差异)).
+Bounded historical arrivals after basic-valid and comparability filtering (**excludes** arrival-time credibility filter; see [algorithm.md appendix](algorithm.md#附与历史查询接口的差异)).
 
-| 参数 / Query | 默认 / Default | 约束 / Constraint |
-|--------------|----------------|-------------------|
-| `limit` | 100 | 1–1000 |
-| `offset` | 0 | ≥ 0 |
+响应 / Response：`HistoryResponse`（`items`、`totalFiltered`、`rawScanned`、`capped`）。
 
-响应 / Response：`PaginatedHistoryResponse`（`items`、`totalFiltered`、`offset`、`limit`、`hasMore`）。
-
-- 每次请求最多扫描 `MAX_HISTORY_ROWS` 条原始记录。
-- `totalFiltered` 为扫描窗口内的尽力计数。
-- `hasMore=true` 时以 `offset + limit` 请求下一页。
+- 每次请求最多扫描 `MAX_HISTORY_ROWS` 条原始记录（单次有界读取，无分页参数）。
+- `totalFiltered` 等于 `items` 条数，表示本次扫描内通过阶段 B 的记录数。
+- `rawScanned` 为本次从数据库读取的原始行数。
+- `capped=true` 表示 `rawScanned` 达到 `MAX_HISTORY_ROWS` 上限，窗口内可能仍有未读记录。
 
 ```bash
-curl "http://localhost:8080/estt/history/MU9941/211231?limit=5&offset=10"
+curl "http://localhost:8080/estt/history/MU9941/211231"
 ```
 
 ### `GET /estt/flyTime/{flightNumber}/{flightDate}` — 核心计算 / core calculation
@@ -119,7 +115,7 @@ curl "http://localhost:8080/estt/history/MU9941/211231?limit=5&offset=10"
 | `GET /health` | 应用健康 |
 | `GET /prometheus` | Prometheus 指标 |
 
-分页指标：`estt.history.pagination.*`。计算指标：`estt.calculation.*`（`SEASONAL` 在指标中标记为 `schedule`）。历史扫描：`estt.history.scan.*`。
+历史查询指标：`estt.history.*`（`calls`、`items`、`filtered`、`raw_rows`，标签 `capped`）。计算指标：`estt.calculation.*`（`SEASONAL` 在指标中标记为 `schedule`）。主计算历史扫描：`estt.history.scan.*`（`raw_rows`、`stage_b_rows`、`qualified_rows`、`calls` 标签 `insufficient_after_cap`）。
 
 ## 配置 / Configuration
 

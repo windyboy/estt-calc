@@ -2,8 +2,8 @@ package com.gzzn.airport.service.history
 
 import com.gzzn.airport.config.EsttCalculationConfig
 import com.gzzn.airport.model.HistoricalFlight
+import com.gzzn.airport.model.HistoryResponse
 import com.gzzn.airport.model.OperationDays
-import com.gzzn.airport.model.PaginatedHistoryResponse
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.HistoryFlightRepository
 import io.micrometer.core.instrument.MeterRegistry
@@ -23,7 +23,7 @@ import kotlin.math.abs
  * - **阶段 C**（[passesScheduleDeviation]）：到港时刻可信（早到保留，晚到不超过阈值）
  *
  * SQL 预筛（到港、时刻齐全、窗口）见 [HistoryFlightRepository]；计划日一致性在 Kotlin 层过滤以兼容多数据库。
- * 分页查询接口仅做阶段 B，不做到港时刻筛选，不启用扩展扫描（algorithm.md 附录）。
+ * 历史查询接口仅做阶段 B，不做到港时刻筛选（algorithm.md 附录）。
  */
 @Singleton
 class HistoryFlightProvider(
@@ -33,9 +33,6 @@ class HistoryFlightProvider(
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(HistoryFlightProvider::class.java)
-
-        /** 每次向数据库分页拉取的原始行数。Raw rows fetched per repository page. */
-        private const val CALC_SCAN_CHUNK_SIZE = 100
     }
 
     /**
@@ -52,251 +49,115 @@ class HistoryFlightProvider(
             flightDate,
         )
         // 目标日为航季首日时窗口为空，直接跳过查询。Empty window on season opening day — skip DB lookup.
-        if (window.startDate > window.endDate) {
-            val empty = emptyHistoryFlightScan()
+        if (window.isEmpty) {
+            val empty = HistoryFlightScan(emptyList(), 0, 0)
             recordCalculationScanMetrics(empty)
             return empty
         }
-        val scan = scanCalculationHistory(seasonalFlight, flightDate, window.startDate, window.endDate)
+        val scan = scanCalculationHistory(seasonalFlight, flightDate, window)
         log.debug(
-            "Retrieved {} raw rows, {} stage-B eligible, {} stage-C qualified (extendedScanUsed={})",
+            "Retrieved {} raw rows, {} stage-B eligible, {} stage-C qualified",
             scan.rawRows,
             scan.stageBRows,
             scan.qualifiedRows,
-            scan.extendedScanUsed,
         )
         recordCalculationScanMetrics(scan)
         return scan
     }
 
     /**
-     * 运维/调试分页接口：仅阶段 B（基本有效 + 可比），不含到港时刻可信筛选与扩展扫描。
-     * Paginated debug API: stage B only — no schedule-deviation filter, no extended scan.
+     * 运维/调试历史查询接口：一次有界读取，仅阶段 B（基本有效 + 可比），不含到港时刻可信筛选。
+     * Debug history API: bounded read, stage B only — no schedule-deviation filter.
      */
-    fun getPaginatedHistory(seasonalFlight: SeasonalFlight, flightDate: LocalDate, offset: Int, limit: Int): PaginatedHistoryResponse {
+    fun getHistory(seasonalFlight: SeasonalFlight, flightDate: LocalDate): HistoryResponse {
         val window = historyWindow(seasonalFlight, flightDate)
-        if (window.startDate > window.endDate) {
-            return PaginatedHistoryResponse(emptyList(), 0, offset, limit, false).also {
-                recordPaginatedHistoryMetrics(it, offset, limit)
-            }
+        if (window.isEmpty) {
+            return HistoryResponse(emptyList(), 0, 0, false).also(::recordHistoryMetrics)
         }
-        val scanResult = scanPaginatedHistory(seasonalFlight, flightDate, window.startDate, window.endDate, offset, limit)
-        val response = PaginatedHistoryResponse(
-            items = scanResult.items,
-            totalFiltered = scanResult.totalFiltered,
-            offset = offset,
-            limit = limit,
-            hasMore = scanResult.hasMore,
+
+        val rawFlights = getBoundedRawHistory(seasonalFlight.flightNumber, window)
+        val items = rawFlights.filter { isComparableHistoryFlight(seasonalFlight, flightDate, it) }
+        val response = HistoryResponse(
+            items = items,
+            totalFiltered = items.size,
+            rawScanned = rawFlights.size,
+            capped = rawFlights.size >= config.maxHistoryRows,
         )
-        recordPaginatedHistoryMetrics(response, offset, limit)
+        recordHistoryMetrics(response)
         return response
     }
 
     /**
-     * 主计算扫描：先常规预算（[EsttCalculationConfig.maxHistoryRows]），
-     * 合格样本仍不足时扩展到 [EsttCalculationConfig.maxRawScanRows]（常规 × 3）。
-     * Calculation scan: regular raw-row budget first, then extended cap if still below minimum.
+     * 主计算扫描：一次读取当前航季窗口内最多 [EsttCalculationConfig.maxHistoryRows] 条原始记录。
+     * Calculation scan: bounded read of at most [EsttCalculationConfig.maxHistoryRows] raw rows in the current season window.
      */
     private fun scanCalculationHistory(
         seasonalFlight: SeasonalFlight,
         targetFlightDate: LocalDate,
-        startDate: LocalDate,
-        endDate: LocalDate,
+        window: HistoryWindow,
     ): HistoryFlightScan {
-        val qualified = mutableListOf<HistoricalFlight>()
-        val pager = RawHistoryPager(seasonalFlight.flightNumber, startDate, endDate)
-        var stageBRows = 0
-
-        fun appendBatch(batch: List<HistoricalFlight>) {
-            for (flight in batch) {
-                if (!hasMatchingScheduledDate(flight)) continue
-                if (!isComparableHistoryFlight(seasonalFlight, targetFlightDate, flight)) continue
-
-                stageBRows++
-                // 阶段 C：到港时刻可信。Stage C: trustworthy arrival time.
-                if (passesScheduleDeviation(flight, config.maxScheduleDeviation)) {
-                    qualified += flight
-                }
-            }
-        }
-
-        fun scanUntil(rawCap: Int): Boolean {
-            while (pager.rawScanned < rawCap && qualified.size < config.minHistoryFlight) {
-                val batch = pager.nextBatch(rawCap) ?: return false
-                appendBatch(batch.flights)
-                if (!batch.hasMoreInWindow) return false
-            }
-            return pager.rawScanned >= rawCap
-        }
-
-        // 阶段 1：由近及远，合格够门槛或触及常规上限即停。Phase 1: stop when enough qualified or regular cap hit.
-        val regularBudgetExhausted = scanUntil(config.maxHistoryRows)
-        val extendedScanUsed = regularBudgetExhausted && qualified.size < config.minHistoryFlight
-
-        // 阶段 2：常规范围内样本不足时向前加深，总量不超过扩展上限。Phase 2: extend scan up to 3× regular cap.
-        if (extendedScanUsed) {
-            scanUntil(config.maxRawScanRows)
-        }
-
-        val insufficientAfterBudget = regularBudgetExhausted && qualified.size < config.minHistoryFlight
-        // insufficientAfterBudget：常规+扩展扫描后仍不足 minHistoryFlight，供指标与上层决策参考。
+        val rawFlights = getBoundedRawHistory(seasonalFlight.flightNumber, window)
+        val stageBEligible = rawFlights.filter { isComparableHistoryFlight(seasonalFlight, targetFlightDate, it) }
+        val qualified = stageBEligible.filter { passesScheduleDeviation(it, config.maxScheduleDeviation) }
 
         return HistoryFlightScan(
-            qualifiedFlights = qualified.toList(),
-            rawRows = pager.rawScanned,
-            stageBRows = stageBRows,
-            extendedScanUsed = extendedScanUsed,
-            insufficientAfterBudget = insufficientAfterBudget,
+            qualifiedFlights = qualified,
+            rawRows = rawFlights.size,
+            stageBRows = stageBEligible.size,
+            insufficientAfterCap = rawFlights.size >= config.maxHistoryRows && qualified.size < config.minHistoryFlight,
         )
     }
 
-    /** 分页扫描：仅阶段 B，原始行上限为 [EsttCalculationConfig.maxHistoryRows]，无扩展。 */
-    private fun scanPaginatedHistory(
-        seasonalFlight: SeasonalFlight,
-        targetFlightDate: LocalDate,
-        startDate: LocalDate,
-        endDate: LocalDate,
-        offset: Int,
-        limit: Int,
-    ): PaginatedScanResult {
-        val items = mutableListOf<HistoricalFlight>()
-        var totalFiltered = 0
-        var observedMore = false
-        var rawOffset = 0
-        var truncatedByScanLimit = false
-        val chunkSize = maxOf(limit, CALC_SCAN_CHUNK_SIZE)
-
-        // 不启用扩展扫描；触及 maxHistoryRows 后 hasMore 可能为 true 但不再继续查。
-        while (rawOffset < config.maxHistoryRows) {
-            val fetchSize = minOf(chunkSize, config.maxHistoryRows - rawOffset)
-            val batch = historyFlightRepository.getArrivalFlightPage(
-                seasonalFlight.flightNumber,
-                startDate,
-                endDate,
-                rawOffset,
-                fetchSize,
-            )
-            if (batch.isEmpty()) break
-
-            rawOffset += batch.size
-            // 仅阶段 B，不调用 passesScheduleDeviation。Stage B only — no schedule-deviation filter.
-            val filteredBatch = batch.filter {
-                hasMatchingScheduledDate(it) &&
-                    isComparableHistoryFlight(seasonalFlight, targetFlightDate, it)
-            }
-            for (flight in filteredBatch) {
-                val currentIndex = totalFiltered++
-                if (currentIndex < offset) continue
-                if (items.size < limit) {
-                    items += flight
-                } else {
-                    observedMore = true
-                }
-            }
-
-            // 原始行已达上限但筛选后仍有未返回记录 → 标记截断。Raw cap hit with more filtered rows beyond this page.
-            if (rawOffset >= config.maxHistoryRows &&
-                batch.size == fetchSize &&
-                totalFiltered > offset + items.size
-            ) {
-                truncatedByScanLimit = true
-            }
-            if (batch.size < fetchSize) break
-        }
-
-        val reportedTotal = minOf(totalFiltered, config.maxHistoryRows)
-        val hasMore = observedMore || reportedTotal > offset + items.size || truncatedByScanLimit
-        return PaginatedScanResult(items, reportedTotal, hasMore)
-    }
-
-    private fun emptyHistoryFlightScan() = HistoryFlightScan(
-        qualifiedFlights = emptyList(),
-        rawRows = 0,
-        stageBRows = 0,
-        extendedScanUsed = false,
-        insufficientAfterBudget = false,
-    )
-
-    private data class PaginatedScanResult(val items: List<HistoricalFlight>, val totalFiltered: Int, val hasMore: Boolean)
-
-    private data class RawHistoryBatch(val flights: List<HistoricalFlight>, val hasMoreInWindow: Boolean)
-
-    private inner class RawHistoryPager(
-        private val flightNumber: String,
-        private val startDate: LocalDate,
-        private val endDate: LocalDate,
-    ) {
-        var rawScanned: Int = 0
-            private set
-
-        private var rawOffset: Int = 0
-
-        fun nextBatch(rawCap: Int): RawHistoryBatch? {
-            val fetchSize = minOf(CALC_SCAN_CHUNK_SIZE, rawCap - rawScanned)
-            if (fetchSize <= 0) return null
-
-            val batch = historyFlightRepository.getArrivalFlightPage(
-                flightNumber,
-                startDate,
-                endDate,
-                rawOffset,
-                fetchSize,
-            )
-            if (batch.isEmpty()) return null
-
-            rawOffset += batch.size
-            rawScanned += batch.size
-            return RawHistoryBatch(batch, hasMoreInWindow = batch.size >= fetchSize)
-        }
-    }
+    private fun getBoundedRawHistory(flightNumber: String, window: HistoryWindow): List<HistoricalFlight> =
+        historyFlightRepository.getArrivalFlights(
+            flightNumber,
+            window.startDate,
+            window.endDate,
+            config.maxHistoryRows,
+        )
 
     private fun recordCalculationScanMetrics(scan: HistoryFlightScan) {
         meterRegistry.summary("estt.history.scan.raw_rows").record(scan.rawRows.toDouble())
         meterRegistry.summary("estt.history.scan.stage_b_rows").record(scan.stageBRows.toDouble())
         meterRegistry.summary("estt.history.scan.qualified_rows").record(scan.qualifiedRows.toDouble())
-        meterRegistry.counter("estt.history.scan.extended_used", "used", scan.extendedScanUsed.toString()).increment()
         meterRegistry.counter(
             "estt.history.scan.calls",
-            "insufficient_after_budget",
-            scan.insufficientAfterBudget.toString(),
+            "insufficient_after_cap",
+            scan.insufficientAfterCap.toString(),
         ).increment()
     }
 
-    private fun recordPaginatedHistoryMetrics(response: PaginatedHistoryResponse, offset: Int, limit: Int) {
-        val hasMoreTag = response.hasMore.toString()
-        val cappedTag = (response.totalFiltered >= config.maxHistoryRows).toString()
+    private fun recordHistoryMetrics(response: HistoryResponse) {
+        val cappedTag = response.capped.toString()
 
         meterRegistry.counter(
-            "estt.history.pagination.calls",
-            "hasMore",
-            hasMoreTag,
+            "estt.history.calls",
             "capped",
             cappedTag,
         ).increment()
 
-        meterRegistry.summary("estt.history.pagination.items", "hasMore", hasMoreTag)
+        meterRegistry.summary("estt.history.items", "capped", cappedTag)
             .record(response.items.size.toDouble())
-        meterRegistry.summary("estt.history.pagination.filtered", "capped", cappedTag)
+        meterRegistry.summary("estt.history.filtered", "capped", cappedTag)
             .record(response.totalFiltered.toDouble())
-        meterRegistry.summary("estt.history.pagination.offset").record(offset.toDouble())
-        meterRegistry.summary("estt.history.pagination.limit").record(limit.toDouble())
+        meterRegistry.summary("estt.history.raw_rows", "capped", cappedTag)
+            .record(response.rawScanned.toDouble())
     }
 
-    private data class HistoryWindow(val startDate: LocalDate, val endDate: LocalDate)
+    private data class HistoryWindow(val startDate: LocalDate, val endDate: LocalDate) {
+        val isEmpty: Boolean get() = startDate > endDate
+    }
 
     /** 历史窗口：[seasonStart, flightDate - 1]，不含目标执行日。Window: season start through day before target. */
-    private fun historyWindow(seasonalFlight: SeasonalFlight, flightDate: LocalDate): HistoryWindow = HistoryWindow(
-        startDate = seasonalFlight.seasonStart,
-        endDate = flightDate.minusDays(1),
-    )
+    private fun historyWindow(seasonalFlight: SeasonalFlight, flightDate: LocalDate): HistoryWindow =
+        HistoryWindow(seasonalFlight.seasonStart, flightDate.minusDays(1))
 
     /**
      * 阶段 B：基本有效复查 + 与目标可比（algorithm.md §7.1–§7.2）。
      * Stage B: basic validity re-check + comparability with the target flight.
      *
-     * 到港、时刻齐全与窗口已在 SQL 预筛；此处复查时间顺序，并校验同运营日及飞行时长容差。
-     * 计划日一致性由 [hasMatchingScheduledDate] 过滤，以避免数据库日期截断函数差异。
-     * Arrival/time/window checks are in SQL; this re-validates order and applies weekday + fly-time rules.
+     * 到港、时刻齐全与窗口已在 SQL 预筛；此处复查计划日、时间顺序，并校验同运营日及飞行时长容差。
+     * Scheduled-date match is checked here (not in SQL) to avoid database date-truncation differences.
      */
     private fun isComparableHistoryFlight(
         seasonalFlight: SeasonalFlight,
@@ -317,24 +178,14 @@ class HistoryFlightProvider(
         // 历史星期几须在季节班期内；目标日已匹配计划时通常与上式等价。Weekday must appear in seasonal operation days.
         if (!OperationDays.matches(seasonalFlight.operationDays, historyWeekday)) return exclude("weekday not in operation days")
 
+        if (historyFlight.scheduledTime.toLocalDate() != historyFlight.flightDate) return exclude("scheduled date mismatch")
         if (historyFlight.previousDepartureTime >= historyFlight.actualTime) return exclude("invalid time order")
 
         val actualFlyTime = Duration.between(historyFlight.previousDepartureTime, historyFlight.actualTime).toMinutes()
         // 有计划时长：偏差严格小于阈值（不含等于）；无计划：闭区间弱约束 [min, max]。
-        // With seasonal time: strict < deviation; without: inclusive [minFlyingTime, maxFlyingTime] weak bounds.
         val withinFlyingTimeTolerance = seasonalFlight.flyingTime?.let { seasonalTime ->
             abs(actualFlyTime - seasonalTime) < config.maxFlyingTimeDeviation
         } ?: (actualFlyTime in config.minFlyingTime..config.maxFlyingTime)
-
-        if (!withinFlyingTimeTolerance) return exclude("flying time outside tolerance")
-        return true
-    }
-
-    private fun hasMatchingScheduledDate(historyFlight: HistoricalFlight): Boolean {
-        val matches = historyFlight.scheduledTime.toLocalDate() == historyFlight.flightDate
-        if (!matches) {
-            log.debug("Excluded history flight on {}: scheduled date mismatch", historyFlight.flightDate)
-        }
-        return matches
+        return withinFlyingTimeTolerance || exclude("flying time outside tolerance")
     }
 }

@@ -14,8 +14,6 @@ class EsttCalculationConfig(
     @param:Value("\${estt.calculation.min-flying-time:30}") val minFlyingTime: Long,
     @param:Value("\${estt.calculation.max-flying-time:600}") val maxFlyingTime: Long,
 ) {
-    val maxRawScanRows: Int get() = maxHistoryRows * EXTENDED_SCAN_MULTIPLIER
-
     init {
         require(minHistoryFlight > 0) {
             "Configuration error: estt.calculation.min-history-flight must be positive, got: $minHistoryFlight"
@@ -29,9 +27,6 @@ class EsttCalculationConfig(
         require(maxHistoryRows > 0) {
             "Configuration error: estt.calculation.max-history-rows must be positive, got: $maxHistoryRows"
         }
-        require(maxHistoryRows <= Int.MAX_VALUE / EXTENDED_SCAN_MULTIPLIER) {
-            "Configuration error: estt.calculation.max-history-rows too large for extended scan multiplier, got: $maxHistoryRows"
-        }
         require(minFlyingTime > 0) {
             "Configuration error: estt.calculation.min-flying-time must be positive, got: $minFlyingTime"
         }
@@ -41,9 +36,5 @@ class EsttCalculationConfig(
         require(dateFormat.isNotBlank()) {
             "Configuration error: estt.calculation.date-format must not be blank"
         }
-    }
-
-    companion object {
-        const val EXTENDED_SCAN_MULTIPLIER = 3
     }
 }

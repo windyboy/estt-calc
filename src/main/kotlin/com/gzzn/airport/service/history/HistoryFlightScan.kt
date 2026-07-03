@@ -10,10 +10,8 @@ data class HistoryFlightScan(
     val rawRows: Int,
     /** 通过阶段 B 的行数（可比样本，未必通过到港时刻筛选）。Rows passing stage B (comparable, not necessarily stage C). */
     val stageBRows: Int,
-    /** 是否启用了扩展扫描（超出常规 maxHistoryRows）。Whether extended scan beyond regular cap was used. */
-    val extendedScanUsed: Boolean = false,
-    /** 扩展扫描后仍不足最低样本数。Still below minimum after regular + extended scan. */
-    val insufficientAfterBudget: Boolean = false,
+    /** 已达扫描上限后仍不足最低样本数。Still below minimum after bounded scan reaches cap. */
+    val insufficientAfterCap: Boolean = false,
 ) {
     /** 通过阶段 C 的合格行数；始终等于 [qualifiedFlights].size。 */
     val qualifiedRows: Int get() = qualifiedFlights.size

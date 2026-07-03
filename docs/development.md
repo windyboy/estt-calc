@@ -59,7 +59,7 @@ src/main/kotlin/com/gzzn/airport/
 ├── resource/            # REST controller endpoints
 ├── service/             # Application orchestration service
 │   ├── calculator/      # Flying-time median/fallback decision rules
-│   └── history/         # History retrieval, pagination scan, and filtering
+│   └── history/         # History retrieval, bounded scan, and filtering
 └── util/                # Kotlin Result helper extensions
 
 src/test/kotlin/com/gzzn/airport/
@@ -127,8 +127,8 @@ Some integration-style tests are currently disabled with Kotest `xdescribe`, inc
 ## Known limitations
 
 - The service computes estimates on demand; it does not pre-compute estimates in the background.
-- Calculation history scan uses `MAX_HISTORY_ROWS` as the phase-one raw budget and `MAX_HISTORY_ROWS × 3` as the hard cap.
-- The `/estt/history` response scans at most `MAX_HISTORY_ROWS` raw rows and reports stage-A/B filtered records observed within that bounded scan window.
-- Historical pagination SQL uses `ROW_NUMBER()` instead of `OFFSET/FETCH` for Oracle 11, PostgreSQL, and H2 compatibility; scheduled-date consistency is filtered in Kotlin to avoid database-specific timestamp truncation functions.
+- Calculation and `/estt/history` both use a single bounded SQL read capped at `MAX_HISTORY_ROWS` raw rows (no pagination, early stop, or extended scan).
+- The `/estt/history` response returns stage-B filtered items from that bounded scan; `totalFiltered` equals `items.size`, `rawScanned` reports raw rows read, and `capped` indicates the raw-row cap was hit.
+- Historical bounded-query SQL uses `ROW_NUMBER()` instead of `OFFSET/FETCH` for Oracle 11, PostgreSQL, and H2 compatibility; scheduled-date consistency is filtered in Kotlin to avoid database-specific timestamp truncation functions.
 - `message` fields are human-readable operational details; clients should rely on stable fields such as `source`, `flyingTime`, `sampleSize`, and `confidence`.
 - Real database behavior depends on Oracle schema/data outside this repository; unit tests use H2 test data.

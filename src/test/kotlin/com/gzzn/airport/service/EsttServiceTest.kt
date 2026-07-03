@@ -163,7 +163,7 @@ class EsttServiceTest :
                 val historyFlights = createHistoryFlights(25, LocalDate.of(2021, 12, 31))
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns seasonalFlight
-                historyFlightRepository.mockArrivalFlightPages(historyFlights)
+                historyFlightRepository.mockArrivalFlights(historyFlights)
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
 
@@ -198,7 +198,7 @@ class EsttServiceTest :
                 val historyFlights = createHistoryFlights(5, LocalDate.of(2021, 12, 31))
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns seasonalFlight
-                historyFlightRepository.mockArrivalFlightPages(historyFlights)
+                historyFlightRepository.mockArrivalFlights(historyFlights)
 
                 val result = esttService.calculate("MU9941", LocalDate.of(2021, 12, 31))
 
@@ -250,8 +250,8 @@ class EsttServiceTest :
             }
         }
 
-        describe("getPaginatedHistoryFlights") {
-            it("should return paginated list successfully") {
+        describe("getHistoryFlights") {
+            it("should return bounded history successfully") {
                 val seasonalFlight = SeasonalFlight(
                     "MU9941",
                     "1234567",
@@ -262,27 +262,20 @@ class EsttServiceTest :
                 val historyFlights = createHistoryFlights(10, LocalDate.of(2021, 12, 31))
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns seasonalFlight
-                every {
-                    historyFlightRepository.getArrivalFlightPage(
-                        "MU9941",
-                        any(),
-                        any(),
-                        any(),
-                        any(),
-                    )
-                } returns historyFlights
+                historyFlightRepository.mockArrivalFlights(historyFlights)
 
-                val result = esttService.getPaginatedHistoryFlights("MU9941", LocalDate.of(2021, 12, 31), 2, 3)
+                val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
 
                 result.isSuccess.shouldBeTrue()
-                val paginated = result.getOrNull()
-                paginated.shouldNotBeNull()
-                paginated.items.size shouldBe 3 // offset 2, limit 3
-                paginated.totalFiltered shouldBe 10 // scans entire window to provide accurate totals
-                paginated.hasMore shouldBe true // offset 2 + limit 3 = 5, which is < total
+                val history = result.getOrNull()
+                history.shouldNotBeNull()
+                history.items.size shouldBe 10
+                history.totalFiltered shouldBe 10
+                history.rawScanned shouldBe 10
+                history.capped.shouldBeFalse()
             }
 
-            it("should stop fetching once hasMore is detected") {
+            it("should mark history as capped when raw rows reach maxHistoryRows") {
                 val seasonalFlight = SeasonalFlight(
                     "MU0001",
                     "1234567",
@@ -291,28 +284,27 @@ class EsttServiceTest :
                     LocalDate.of(2021, 12, 31),
                 )
                 val flightDate = LocalDate.of(2021, 12, 31)
-                val historyFlights = createHistoryFlights(6, flightDate)
+                val historyFlights = createHistoryFlights(config.maxHistoryRows, flightDate)
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU0001", "5", any()) } returns seasonalFlight
-                every {
-                    historyFlightRepository.getArrivalFlightPage("MU0001", any(), any(), any(), any())
-                } returns historyFlights
+                historyFlightRepository.mockArrivalFlights(historyFlights)
 
-                val result = esttService.getPaginatedHistoryFlights("MU0001", flightDate, 0, 5)
+                val result = esttService.getHistoryFlights("MU0001", flightDate)
 
                 result.isSuccess.shouldBeTrue()
-                val paginated = result.getOrNull()
-                paginated.shouldNotBeNull()
-                paginated.items.size shouldBe 5
-                paginated.totalFiltered shouldBe 6
-                paginated.hasMore.shouldBeTrue()
+                val history = result.getOrNull()
+                history.shouldNotBeNull()
+                history.items.size shouldBe config.maxHistoryRows
+                history.totalFiltered shouldBe config.maxHistoryRows
+                history.rawScanned shouldBe config.maxHistoryRows
+                history.capped.shouldBeTrue()
 
                 verify(exactly = 1) {
-                    historyFlightRepository.getArrivalFlightPage("MU0001", any(), any(), any(), any())
+                    historyFlightRepository.getArrivalFlights("MU0001", any(), any(), config.maxHistoryRows)
                 }
             }
 
-            it("should respect maxHistoryRows even when most records are filtered out") {
+            it("should return empty list when all history is filtered out") {
                 val seasonalFlight = SeasonalFlight(
                     "MU0002",
                     "1234567",
@@ -324,9 +316,7 @@ class EsttServiceTest :
                 val unqualifiedFlights = createHistoryFlightsWithDelay(10, flightDate, delayMinutes = 400)
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU0002", "5", any()) } returns seasonalFlight
-                every {
-                    historyFlightRepository.getArrivalFlightPage("MU0002", any(), any(), any(), any())
-                } returns unqualifiedFlights
+                historyFlightRepository.mockArrivalFlights(unqualifiedFlights)
 
                 val constrainedConfig = EsttCalculationConfig(
                     maxScheduleDeviation = 120,
@@ -344,29 +334,28 @@ class EsttServiceTest :
                     constrainedConfig,
                 )
 
-                val result = constrainedService.getPaginatedHistoryFlights("MU0002", flightDate, 0, 5)
+                val result = constrainedService.getHistoryFlights("MU0002", flightDate)
 
                 result.isSuccess.shouldBeTrue()
-                val paginated = result.getOrNull()
-                paginated.shouldNotBeNull()
-                paginated.items.isEmpty().shouldBeTrue()
-                paginated.totalFiltered shouldBe 0
-                paginated.hasMore.shouldBeFalse()
-
-                verify(exactly = 1) {
-                    historyFlightRepository.getArrivalFlightPage("MU0002", any(), any(), any(), any())
-                }
+                val history = result.getOrNull()
+                history.shouldNotBeNull()
+                history.items.isEmpty().shouldBeTrue()
+                history.totalFiltered shouldBe 0
+                history.rawScanned shouldBe 10
+                history.capped.shouldBeTrue()
             }
 
             it("should return empty list when seasonal flight not found") {
                 every { seasonRepository.getSeasonalArrivalFlight("XX9999", "5", any()) } returns null
 
-                val result = esttService.getPaginatedHistoryFlights("XX9999", LocalDate.of(2021, 12, 31), 0, 10)
+                val result = esttService.getHistoryFlights("XX9999", LocalDate.of(2021, 12, 31))
 
                 result.isSuccess.shouldBeTrue()
                 val response = result.getOrNull()!!
                 response.items.isEmpty().shouldBeTrue()
                 response.totalFiltered shouldBe 0
+                response.rawScanned shouldBe 0
+                response.capped.shouldBeFalse()
             }
 
             it("should return failure when repository throws exception") {
@@ -380,10 +369,10 @@ class EsttServiceTest :
 
                 every { seasonRepository.getSeasonalArrivalFlight("MU9941", "5", any()) } returns seasonalFlight
                 every {
-                    historyFlightRepository.getArrivalFlightPage(any(), any(), any(), any(), any())
+                    historyFlightRepository.getArrivalFlights(any(), any(), any(), any())
                 } throws RuntimeException("Database error")
 
-                val result = esttService.getPaginatedHistoryFlights("MU9941", LocalDate.of(2021, 12, 31), 0, 10)
+                val result = esttService.getHistoryFlights("MU9941", LocalDate.of(2021, 12, 31))
 
                 result.isFailure.shouldBeTrue()
             }
@@ -425,20 +414,6 @@ class EsttServiceTest :
                         minHistoryFlight = 20,
                         dateFormat = "yyMMdd",
                         maxHistoryRows = 300,
-                        minFlyingTime = 30,
-                        maxFlyingTime = 600,
-                    )
-                }
-            }
-
-            it("should reject max history rows that overflow extended scan multiplier") {
-                shouldThrow<IllegalArgumentException> {
-                    EsttCalculationConfig(
-                        maxScheduleDeviation = 120,
-                        maxFlyingTimeDeviation = 120,
-                        minHistoryFlight = 20,
-                        dateFormat = "yyMMdd",
-                        maxHistoryRows = Int.MAX_VALUE,
                         minFlyingTime = 30,
                         maxFlyingTime = 600,
                     )

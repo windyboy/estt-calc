@@ -2,10 +2,9 @@ package com.gzzn.airport.service.history
 
 import com.gzzn.airport.config.EsttCalculationConfig
 import com.gzzn.airport.model.HistoricalFlight
-import com.gzzn.airport.model.PaginatedHistoryResponse
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.HistoryFlightRepository
-import com.gzzn.airport.service.mockArrivalFlightPages
+import com.gzzn.airport.service.mockArrivalFlights
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -14,7 +13,6 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
-import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import java.time.LocalDate
@@ -72,7 +70,7 @@ class HistoryFlightProviderTest :
                     previousDepartureTime = validFlight.actualTime.plusMinutes(5),
                 )
 
-                repository.mockArrivalFlightPages(listOf(validFlight, mismatchedDay, excessiveDelay, reversedTime))
+                repository.mockArrivalFlights(listOf(validFlight, mismatchedDay, excessiveDelay, reversedTime))
 
                 val result = provider.getHistoryFlights(seasonalFlight, baseDate)
 
@@ -83,17 +81,15 @@ class HistoryFlightProviderTest :
 
             it("excludes the target operation date from the repository query window") {
                 val targetDate = LocalDate.of(2024, 6, 5)
-                repository.mockArrivalFlightPages(emptyList())
+                repository.mockArrivalFlights(emptyList())
 
                 provider.getHistoryFlights(seasonalFlight, targetDate)
 
                 verify {
-                    repository.getArrivalFlightPage(
+                    repository.getArrivalFlights(
                         seasonalFlight.flightNumber,
                         any(),
                         targetDate.minusDays(1),
-                        any(),
-                        any(),
                         any(),
                     )
                 }
@@ -113,7 +109,7 @@ class HistoryFlightProviderTest :
                     actualDurationMinutes = seasonalFlyingTime + config.maxFlyingTimeDeviation,
                 )
 
-                repository.mockArrivalFlightPages(listOf(insideExclusiveThreshold, exactThreshold))
+                repository.mockArrivalFlights(listOf(insideExclusiveThreshold, exactThreshold))
 
                 val result = provider.getHistoryFlights(seasonalFlight, baseDate)
 
@@ -131,13 +127,45 @@ class HistoryFlightProviderTest :
                     actualDurationMinutes = 500,
                 )
 
-                repository.mockArrivalFlightPages(listOf(longDurationFlight))
+                repository.mockArrivalFlights(listOf(longDurationFlight))
 
                 val result = provider.getHistoryFlights(seasonalWithoutFlyingTime, baseDate)
 
                 result.stageBRows shouldBe 1
                 result.qualifiedFlights shouldHaveSize 1
                 result.qualifiedFlights.first() shouldBe longDurationFlight
+            }
+
+            it("marks insufficientAfterCap when raw rows hit cap but qualified samples are below minimum") {
+                val targetDate = LocalDate.of(2024, 6, 5)
+                val allDaysSeasonal = seasonalFlight.copy(operationDays = "1234567")
+                val qualifiedCount = config.minHistoryFlight - 1
+                val qualified = List(qualifiedCount) { index ->
+                    historyFlight(targetDate.minusWeeks(index.toLong() + 1), 0, 100)
+                }
+                val lateBeyondSchedule = List(config.maxHistoryRows - qualifiedCount) { index ->
+                    val base = historyFlight(targetDate.minusWeeks(qualifiedCount + index.toLong() + 1), 0, 100)
+                    base.copy(
+                        actualTime = base.scheduledTime.plusMinutes(config.maxScheduleDeviation.toLong() + 1),
+                        previousDepartureTime = base.scheduledTime
+                            .plusMinutes(config.maxScheduleDeviation.toLong() + 1)
+                            .minusMinutes(100),
+                    )
+                }
+
+                repository.mockArrivalFlights(qualified + lateBeyondSchedule)
+
+                val scan = provider.getHistoryFlights(allDaysSeasonal, targetDate)
+
+                scan.rawRows shouldBe config.maxHistoryRows
+                scan.stageBRows shouldBe config.maxHistoryRows
+                scan.qualifiedRows shouldBe qualifiedCount
+                scan.insufficientAfterCap.shouldBeTrue()
+                meterRegistry.counter(
+                    "estt.history.scan.calls",
+                    "insufficient_after_cap",
+                    "true",
+                ).count() shouldBe 1.0
             }
 
             it("records calculation scan metrics") {
@@ -151,77 +179,28 @@ class HistoryFlightProviderTest :
                     )
                 }
 
-                repository.mockArrivalFlightPages(flights)
+                repository.mockArrivalFlights(flights)
 
                 val scan = provider.getHistoryFlights(allDaysSeasonal, baseDate)
 
                 scan.rawRows shouldBe config.maxHistoryRows
-                scan.insufficientAfterBudget.shouldBeFalse()
+                scan.insufficientAfterCap.shouldBeFalse()
                 meterRegistry.summary("estt.history.scan.raw_rows").count() shouldBe 1
                 meterRegistry.summary("estt.history.scan.stage_b_rows").count() shouldBe 1
                 meterRegistry.summary("estt.history.scan.qualified_rows").count() shouldBe 1
-                meterRegistry.counter("estt.history.scan.extended_used", "used", "false").count() shouldBe 1.0
                 meterRegistry.counter(
                     "estt.history.scan.calls",
-                    "insufficient_after_budget",
+                    "insufficient_after_cap",
                     "false",
                 ).count() shouldBe 1.0
             }
-
-            it("extends scan beyond raw budget when qualified samples appear after the cap") {
-                val baseDate = LocalDate.of(2024, 6, 5)
-                val allDaysSeasonal = seasonalFlight.copy(operationDays = "1234567")
-                val rejectedInBudget = List(config.maxHistoryRows) { index ->
-                    historyFlight(
-                        date = baseDate.minusDays(index.toLong() + 1),
-                        scheduledOffsetMinutes = 0,
-                        actualDurationMinutes = 250,
-                    )
-                }
-                val qualifiedAfterBudget = List(config.minHistoryFlight) { index ->
-                    historyFlight(
-                        date = baseDate.minusWeeks(index.toLong() + 10),
-                        scheduledOffsetMinutes = 0,
-                        actualDurationMinutes = 100,
-                    )
-                }
-
-                repository.mockArrivalFlightPages(rejectedInBudget, qualifiedAfterBudget)
-
-                val scan = provider.getHistoryFlights(allDaysSeasonal, baseDate)
-
-                scan.extendedScanUsed.shouldBeTrue()
-                scan.qualifiedFlights shouldHaveSize config.minHistoryFlight
-                scan.insufficientAfterBudget.shouldBeFalse()
-            }
-
-            it("stops extending when scan budget is exhausted and window has no more rows") {
-                val baseDate = LocalDate.of(2024, 6, 5)
-                val allDaysSeasonal = seasonalFlight.copy(operationDays = "1234567")
-                val rejectedOnly = List(config.maxHistoryRows) { index ->
-                    historyFlight(
-                        date = baseDate.minusDays(index.toLong()),
-                        scheduledOffsetMinutes = 0,
-                        actualDurationMinutes = 250,
-                    )
-                }
-
-                repository.mockArrivalFlightPages(rejectedOnly)
-
-                val scan = provider.getHistoryFlights(allDaysSeasonal, baseDate)
-
-                scan.extendedScanUsed.shouldBeTrue()
-                scan.stageBRows shouldBe 0
-                scan.qualifiedFlights.shouldBeEmpty()
-                scan.insufficientAfterBudget.shouldBeTrue()
-            }
         }
 
-        describe("getPaginatedHistory") {
-            it("returns filtered items and records pagination metrics") {
+        describe("getHistory") {
+            it("returns filtered items and records history metrics") {
                 val baseDate = LocalDate.of(2024, 6, 5)
-                val paginatedSeasonal = seasonalFlight.copy(operationDays = "1234567")
-                val combinedBatch = List(10) { index ->
+                val allDaysSeasonal = seasonalFlight.copy(operationDays = "1234567")
+                val flights = List(10) { index ->
                     historyFlight(
                         date = baseDate.minusWeeks(index.toLong()),
                         scheduledOffsetMinutes = 0,
@@ -229,31 +208,28 @@ class HistoryFlightProviderTest :
                     )
                 }
 
-                every {
-                    repository.getArrivalFlightPage(paginatedSeasonal.flightNumber, any(), any(), any(), any(), any())
-                } returns combinedBatch
+                repository.mockArrivalFlights(flights)
 
-                val response: PaginatedHistoryResponse =
-                    provider.getPaginatedHistory(paginatedSeasonal, baseDate, offset = 3, limit = 4)
+                val response = provider.getHistory(allDaysSeasonal, baseDate)
 
-                response.items shouldHaveSize 4
+                response.items shouldHaveSize 10
                 response.totalFiltered shouldBe 10
-                response.hasMore.shouldBeTrue()
+                response.rawScanned shouldBe 10
+                response.capped.shouldBeFalse()
 
-                meterRegistry.counter("estt.history.pagination.calls", "hasMore", "true", "capped", "false").count() shouldBe 1.0
-                meterRegistry.summary("estt.history.pagination.items", "hasMore", "true").count() shouldBe 1
+                meterRegistry.counter("estt.history.calls", "capped", "false").count() shouldBe 1.0
+                meterRegistry.summary("estt.history.items", "capped", "false").count() shouldBe 1
             }
 
             it("returns empty response when repository yields no data") {
-                every {
-                    repository.getArrivalFlightPage(seasonalFlight.flightNumber, any(), any(), any(), any(), any())
-                } returns emptyList()
+                repository.mockArrivalFlights(emptyList())
 
-                val response = provider.getPaginatedHistory(seasonalFlight, LocalDate.of(2024, 6, 5), offset = 0, limit = 5)
+                val response = provider.getHistory(seasonalFlight, LocalDate.of(2024, 6, 5))
 
                 response.items.shouldBeEmpty()
-                response.hasMore.shouldBeFalse()
+                response.capped.shouldBeFalse()
                 response.totalFiltered shouldBe 0
+                response.rawScanned shouldBe 0
             }
         }
 
@@ -263,7 +239,7 @@ class HistoryFlightProviderTest :
                 val sameWeekday = historyFlight(targetDate.minusWeeks(1), 0, 100)
                 val otherWeekday = historyFlight(targetDate.minusDays(1), 0, 100) // Tuesday
 
-                repository.mockArrivalFlightPages(listOf(sameWeekday, otherWeekday))
+                repository.mockArrivalFlights(listOf(sameWeekday, otherWeekday))
 
                 val scan = provider.getHistoryFlights(seasonalFlight, targetDate)
 
@@ -279,7 +255,7 @@ class HistoryFlightProviderTest :
                     it.copy(scheduledTime = it.scheduledTime.plusDays(1))
                 }
 
-                repository.mockArrivalFlightPages(listOf(matchingDate, scheduledDateMismatch))
+                repository.mockArrivalFlights(listOf(matchingDate, scheduledDateMismatch))
 
                 val scan = provider.getHistoryFlights(seasonalFlight, targetDate)
 
@@ -288,7 +264,7 @@ class HistoryFlightProviderTest :
                 scan.qualifiedFlights.single() shouldBe matchingDate
             }
 
-            it("filters scheduled-date mismatches from paginated history") {
+            it("filters scheduled-date mismatches from history query") {
                 val targetDate = LocalDate.of(2024, 6, 5)
                 val allDaysSeasonal = seasonalFlight.copy(operationDays = "1234567")
                 val matchingDate = historyFlight(targetDate.minusWeeks(1), 0, 100)
@@ -296,36 +272,34 @@ class HistoryFlightProviderTest :
                     it.copy(scheduledTime = it.scheduledTime.plusDays(1))
                 }
 
-                repository.mockArrivalFlightPages(listOf(matchingDate, scheduledDateMismatch))
+                repository.mockArrivalFlights(listOf(matchingDate, scheduledDateMismatch))
 
-                val paginated = provider.getPaginatedHistory(allDaysSeasonal, targetDate, offset = 0, limit = 10)
+                val history = provider.getHistory(allDaysSeasonal, targetDate)
 
-                paginated.items shouldHaveSize 1
-                paginated.items.single() shouldBe matchingDate
-                paginated.totalFiltered shouldBe 1
-                paginated.hasMore.shouldBeFalse()
+                history.items shouldHaveSize 1
+                history.items.single() shouldBe matchingDate
+                history.totalFiltered shouldBe 1
+                history.capped.shouldBeFalse()
             }
 
             it("does not let history window start before seasonStart") {
                 val targetDate = LocalDate.of(2024, 6, 5)
                 val earlySeason = seasonalFlight.copy(seasonStart = LocalDate.of(2024, 6, 1))
-                repository.mockArrivalFlightPages(emptyList())
+                repository.mockArrivalFlights(emptyList())
 
                 provider.getHistoryFlights(earlySeason, targetDate)
 
                 verify {
-                    repository.getArrivalFlightPage(
+                    repository.getArrivalFlights(
                         earlySeason.flightNumber,
                         LocalDate.of(2024, 6, 1),
                         targetDate.minusDays(1),
-                        any(),
-                        any(),
                         any(),
                     )
                 }
             }
 
-            it("stops phase 1 once enough schedule-qualified samples are found") {
+            it("uses bounded rows even when enough schedule-qualified samples are found") {
                 val targetDate = LocalDate.of(2024, 6, 5)
                 val allDaysSeasonal = seasonalFlight.copy(operationDays = "1234567")
                 val qualified = List(config.minHistoryFlight) { index ->
@@ -334,28 +308,12 @@ class HistoryFlightProviderTest :
                 val padding = List(200) { index ->
                     historyFlight(targetDate.minusDays(index.toLong() + 30), 0, 250)
                 }
-                repository.mockArrivalFlightPages(qualified + padding)
+                repository.mockArrivalFlights(qualified + padding)
 
                 val scan = provider.getHistoryFlights(allDaysSeasonal, targetDate)
 
                 scan.rawRows shouldBe config.maxHistoryRows
                 scan.qualifiedRows shouldBe config.minHistoryFlight
-            }
-
-            it("caps extended scan at maxHistoryRows times three") {
-                val targetDate = LocalDate.of(2024, 6, 5)
-                val allDaysSeasonal = seasonalFlight.copy(operationDays = "1234567")
-                val rejectedOnly = List(config.maxHistoryRows * EsttCalculationConfig.EXTENDED_SCAN_MULTIPLIER) { index ->
-                    historyFlight(targetDate.minusDays(index.toLong() + 1), 0, 250)
-                }
-                repository.mockArrivalFlightPages(rejectedOnly)
-
-                val scan = provider.getHistoryFlights(allDaysSeasonal, targetDate)
-
-                scan.rawRows shouldBe config.maxHistoryRows * EsttCalculationConfig.EXTENDED_SCAN_MULTIPLIER
-                scan.insufficientAfterBudget.shouldBeTrue()
-                scan.stageBRows shouldBe 0
-                scan.qualifiedFlights.shouldBeEmpty()
             }
 
             it("rejects out-of-range duration when seasonal flyingTime is null") {
@@ -364,7 +322,7 @@ class HistoryFlightProviderTest :
                 val tooShort = historyFlight(targetDate.minusWeeks(1), 0, 10)
                 val inRange = historyFlight(targetDate.minusWeeks(2), 0, 100)
 
-                repository.mockArrivalFlightPages(listOf(tooShort, inRange))
+                repository.mockArrivalFlights(listOf(tooShort, inRange))
 
                 val scan = provider.getHistoryFlights(seasonalWithoutFlyingTime, targetDate)
 
@@ -378,7 +336,7 @@ class HistoryFlightProviderTest :
                 val seasonalWithoutFlyingTime = seasonalFlight.copy(flyingTime = null)
                 val atMin = historyFlight(targetDate.minusWeeks(1), 0, config.minFlyingTime)
 
-                repository.mockArrivalFlightPages(listOf(atMin))
+                repository.mockArrivalFlights(listOf(atMin))
 
                 val scan = provider.getHistoryFlights(seasonalWithoutFlyingTime, targetDate)
 
@@ -391,7 +349,7 @@ class HistoryFlightProviderTest :
                 val seasonalWithoutFlyingTime = seasonalFlight.copy(flyingTime = null)
                 val atMax = historyFlight(targetDate.minusWeeks(1), 0, config.maxFlyingTime)
 
-                repository.mockArrivalFlightPages(listOf(atMax))
+                repository.mockArrivalFlights(listOf(atMax))
 
                 val scan = provider.getHistoryFlights(seasonalWithoutFlyingTime, targetDate)
 
@@ -404,7 +362,7 @@ class HistoryFlightProviderTest :
                 val seasonalWithoutFlyingTime = seasonalFlight.copy(flyingTime = null)
                 val aboveMax = historyFlight(targetDate.minusWeeks(1), 0, config.maxFlyingTime + 1)
 
-                repository.mockArrivalFlightPages(listOf(aboveMax))
+                repository.mockArrivalFlights(listOf(aboveMax))
 
                 val scan = provider.getHistoryFlights(seasonalWithoutFlyingTime, targetDate)
 
@@ -412,7 +370,7 @@ class HistoryFlightProviderTest :
                 scan.qualifiedFlights.shouldBeEmpty()
             }
 
-            it("applies stage B only for paginated history") {
+            it("applies stage B only for history query") {
                 val targetDate = LocalDate.of(2024, 6, 5)
                 val allDaysSeasonal = seasonalFlight.copy(operationDays = "1234567")
                 val onTime = historyFlight(targetDate.minusWeeks(1), 0, 100)
@@ -423,13 +381,13 @@ class HistoryFlightProviderTest :
                         .minusMinutes(100),
                 )
 
-                repository.mockArrivalFlightPages(listOf(onTime, lateBeyondSchedule))
+                repository.mockArrivalFlights(listOf(onTime, lateBeyondSchedule))
 
-                val paginated = provider.getPaginatedHistory(allDaysSeasonal, targetDate, offset = 0, limit = 10)
+                val history = provider.getHistory(allDaysSeasonal, targetDate)
                 val calcScan = provider.getHistoryFlights(allDaysSeasonal, targetDate)
 
-                paginated.items shouldHaveSize 2
-                paginated.totalFiltered shouldBe 2
+                history.items shouldHaveSize 2
+                history.totalFiltered shouldBe 2
                 calcScan.stageBRows shouldBe 2
                 calcScan.qualifiedFlights shouldHaveSize 1
                 calcScan.qualifiedFlights.single() shouldBe onTime
@@ -448,7 +406,7 @@ class HistoryFlightProviderTest :
                 scan.qualifiedFlights.shouldBeEmpty()
                 scan.rawRows shouldBe 0
                 verify(exactly = 0) {
-                    repository.getArrivalFlightPage(any(), any(), any(), any(), any(), any())
+                    repository.getArrivalFlights(any(), any(), any(), any())
                 }
             }
         }

@@ -3,7 +3,7 @@ package com.gzzn.airport.resource
 import com.gzzn.airport.exception.ErrorCode
 import com.gzzn.airport.exception.ErrorResponse
 import com.gzzn.airport.model.*
-import com.gzzn.airport.model.PaginatedHistoryResponse
+import com.gzzn.airport.model.HistoryResponse
 import com.gzzn.airport.service.EsttService
 import io.micrometer.core.annotation.Counted
 import io.micrometer.core.annotation.Timed
@@ -11,7 +11,6 @@ import io.micronaut.context.annotation.Value
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
-import io.micronaut.http.annotation.QueryValue
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
@@ -118,21 +117,20 @@ open class EsttController(
         )
     }
 
-    @Get(uri = "/history/{flightNumber}/{flightDateString}{?limit,offset}")
+    @Get(uri = "/history/{flightNumber}/{flightDateString}")
     @Timed(value = "estt.api.history", description = "Get flight history API")
     @Counted(value = "estt.api.history.calls", description = "Number of history queries")
     @Operation(
         summary = "Get historical flights",
-        description = "Returns historical flight records matching the operational day and date criteria. " +
-            "Supports optional pagination via limit and offset query parameters.",
+        description = "Returns bounded historical flight records matching the operational day and date criteria.",
     )
     @ApiResponses(
         ApiResponse(
             responseCode = "200",
             description = "History retrieved successfully",
-            content = [Content(schema = Schema(implementation = PaginatedHistoryResponse::class))],
+            content = [Content(schema = Schema(implementation = HistoryResponse::class))],
         ),
-        ApiResponse(responseCode = "400", description = "Invalid flight number, date format, or pagination parameters"),
+        ApiResponse(responseCode = "400", description = "Invalid flight number or date format"),
         ApiResponse(responseCode = "500", description = "Database error"),
     )
     open fun getHistoryFlights(
@@ -140,31 +138,24 @@ open class EsttController(
         flightNumber: String,
         @Parameter(description = "Flight date in format yyMMdd (e.g., 211231)", example = "211231", required = true)
         flightDateString: String,
-        @Parameter(description = "Maximum number of results to return", example = "100")
-        @QueryValue(defaultValue = "100") limit: Int,
-        @Parameter(description = "Number of results to skip", example = "0")
-        @QueryValue(defaultValue = "0") offset: Int,
     ): HttpResponse<*> {
-        validatePaginationParams(limit, offset)
-
         val request = parseFlightRequest(flightNumber, flightDateString)
         log.info(
-            "Request: GET /estt/history/{}/{} limit={} offset={}",
+            "Request: GET /estt/history/{}/{}",
             request.normalizedFlightNumber,
             flightDateString,
-            limit,
-            offset,
         )
 
-        return esttService.getPaginatedHistoryFlights(request.normalizedFlightNumber, request.flightDate, offset, limit).fold(
-            onSuccess = { paginatedResponse ->
+        return esttService.getHistoryFlights(request.normalizedFlightNumber, request.flightDate).fold(
+            onSuccess = { historyResponse ->
                 log.info(
-                    "Response: total={}, returned={}, hasMore={}",
-                    paginatedResponse.totalFiltered,
-                    paginatedResponse.items.size,
-                    paginatedResponse.hasMore,
+                    "Response: total={}, returned={}, rawScanned={}, capped={}",
+                    historyResponse.totalFiltered,
+                    historyResponse.items.size,
+                    historyResponse.rawScanned,
+                    historyResponse.capped,
                 )
-                HttpResponse.ok(paginatedResponse)
+                HttpResponse.ok(historyResponse)
             },
             onFailure = { e ->
                 log.error("Failed to get paginated history flights for ${request.normalizedFlightNumber}", e)
@@ -223,15 +214,6 @@ open class EsttController(
         validateFlightNumber(normalizedFlightNumber)
         val flightDate = esttService.parseFlightDate(flightDateString)
         return FlightDateRequest(normalizedFlightNumber, flightDate)
-    }
-
-    private fun validatePaginationParams(limit: Int, offset: Int) {
-        require(limit in 1..1000) {
-            "Limit must be between 1 and 1000, got: $limit"
-        }
-        require(offset >= 0) {
-            "Offset must be non-negative, got: $offset"
-        }
     }
 
     private fun validateFlightNumber(flightNumber: String) {

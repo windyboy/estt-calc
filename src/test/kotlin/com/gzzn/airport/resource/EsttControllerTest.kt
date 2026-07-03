@@ -5,7 +5,7 @@ import com.gzzn.airport.model.Confidence
 import com.gzzn.airport.model.EstimateSource
 import com.gzzn.airport.model.FlightSeason
 import com.gzzn.airport.model.FlyingTimeResponse
-import com.gzzn.airport.model.PaginatedHistoryResponse
+import com.gzzn.airport.model.HistoryResponse
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.service.EsttService
 import io.kotest.assertions.throwables.shouldThrow
@@ -127,15 +127,16 @@ class EsttControllerTest :
                 )
                 every { esttService.parseFlightDate(any()) } returns LocalDate.of(2021, 12, 31)
                 every { esttService.getSeasonalFlight(any(), any()) } returns Result.success(seasonalFlight)
-                val paginatedResponse = PaginatedHistoryResponse(emptyList(), 0, 0, 100, false)
-                every { esttService.getPaginatedHistoryFlights(any(), any(), any(), any()) } returns Result.success(paginatedResponse)
+                val historyResponse = HistoryResponse(emptyList(), 0, 0, false)
+                every { esttService.getHistoryFlights(any(), any()) } returns Result.success(historyResponse)
 
-                val response = controller.getHistoryFlights("MU9941", "211231", 100, 0)
+                val response = controller.getHistoryFlights("MU9941", "211231")
 
                 response.status shouldBe HttpStatus.OK
-                val body = response.body() as PaginatedHistoryResponse
+                val body = response.body() as HistoryResponse
                 body.items shouldBe emptyList()
                 body.totalFiltered shouldBe 0
+                body.rawScanned shouldBe 0
             }
 
             it("should return server error on exception") {
@@ -148,10 +149,10 @@ class EsttControllerTest :
                 )
                 every { esttService.parseFlightDate(any()) } returns LocalDate.of(2021, 12, 31)
                 every { esttService.getSeasonalFlight(any(), any()) } returns Result.success(seasonalFlight)
-                every { esttService.getPaginatedHistoryFlights(any(), any(), any(), any()) } returns
+                every { esttService.getHistoryFlights(any(), any()) } returns
                     Result.failure(RuntimeException("DB error"))
 
-                val response = controller.getHistoryFlights("MU9941", "211231", 100, 0)
+                val response = controller.getHistoryFlights("MU9941", "211231")
 
                 response.status shouldBe HttpStatus.INTERNAL_SERVER_ERROR
             }
