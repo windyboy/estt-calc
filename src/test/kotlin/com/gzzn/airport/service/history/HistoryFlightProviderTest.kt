@@ -5,6 +5,7 @@ import com.gzzn.airport.model.HistoricalFlight
 import com.gzzn.airport.model.SeasonalFlight
 import com.gzzn.airport.repository.HistoryFlightRepository
 import com.gzzn.airport.service.mockArrivalFlights
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -393,8 +394,16 @@ class HistoryFlightProviderTest :
                 calcScan.qualifiedFlights.single() shouldBe onTime
             }
 
+            it("rejects target date outside seasonal operation days") {
+                val targetDate = LocalDate.of(2024, 6, 4) // Tuesday; seasonal operation days are 135
+
+                shouldThrow<IllegalStateException> {
+                    provider.getHistoryFlights(seasonalFlight, targetDate)
+                }
+            }
+
             it("returns empty scan when history window is empty") {
-                val seasonStart = LocalDate.of(2024, 6, 1)
+                val seasonStart = LocalDate.of(2024, 6, 5) // Wednesday, in operation days 135
                 val targetDate = seasonStart
 
                 val scan = provider.getHistoryFlights(

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-07-03 — HistoryFlightProvider 阶段 B 整理 / Stage-B filter cleanup
+
+### 算法 / Algorithm
+
+- 阶段 B 筛选函数重命名为 `passesStageB`（原 `isComparableHistoryFlight`）。
+- 目标执行日须在季节班期内：由 Provider 入口 `requireTargetInSeasonalOperationDays` 一次性校验（`EsttService` 已校验；直接调用 Provider 时 fail-fast）。
+- 逐条阶段 B 仅保留：同星期几、计划日与执行日一致、起飞早于到港、飞行时长容差；班期不再在循环内重复解析。
+
+### 验证 / Verification
+
+- `./gradlew check` 通过 / passed.
+
+---
+
 ## 2026-07-03 — 实现简化与指标整理 / Implementation simplification
 
 ### 算法 / Algorithm

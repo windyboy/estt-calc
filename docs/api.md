@@ -19,9 +19,9 @@ Returns the active `FlightSeason`, or **404** if none.
 
 ### `GET /estt/history/{flightNumber}/{flightDate}`
 
-经「基本有效」与「与目标航班可比」两道筛选后的到港历史，一次性有界返回（**不含**到港时刻可信筛选；见 [algorithm.md 附录](algorithm.md#附与历史查询接口的差异)）。
+经阶段 B（基本有效 + 与目标同运营日）筛选后的到港历史，一次性有界返回（**不含**到港时刻可信筛选；见 [algorithm.md 附录](algorithm.md#附与历史查询接口的差异)）。经 `EsttService` 调用时，目标日须先匹配季节班期；无季节计划则返回空列表。
 
-Bounded historical arrivals after basic-valid and comparability filtering (**excludes** arrival-time credibility filter; see [algorithm.md appendix](algorithm.md#附与历史查询接口的差异)).
+Stage-B filtered arrivals (basic-valid + same operation day as target), bounded single response (**excludes** stage-C arrival-time filter; see [algorithm.md appendix](algorithm.md#附与历史查询接口的差异)). Via `EsttService`, the target date must match seasonal operation days; empty list when no seasonal plan.
 
 响应 / Response：`HistoryResponse`（`items`、`totalFiltered`、`rawScanned`、`capped`）。
 

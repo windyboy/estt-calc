@@ -128,6 +128,7 @@ Some integration-style tests are currently disabled with Kotest `xdescribe`, inc
 
 - The service computes estimates on demand; it does not pre-compute estimates in the background.
 - Calculation and `/estt/history` both use a single bounded SQL read capped at `MAX_HISTORY_ROWS` raw rows (no pagination, early stop, or extended scan).
+- `HistoryFlightProvider` validates that the target date falls on a seasonal operation day at entry; per-row stage B (`passesStageB`) then checks same weekday, scheduled-date match, time order, and flying-time tolerance.
 - The `/estt/history` response returns stage-B filtered items from that bounded scan; `totalFiltered` equals `items.size`, `rawScanned` reports raw rows read, and `capped` indicates the raw-row cap was hit.
 - Historical bounded-query SQL uses `ROW_NUMBER()` instead of `OFFSET/FETCH` for Oracle 11, PostgreSQL, and H2 compatibility; scheduled-date consistency is filtered in Kotlin to avoid database-specific timestamp truncation functions.
 - `message` fields are human-readable operational details; clients should rely on stable fields such as `source`, `flyingTime`, `sampleSize`, and `confidence`.

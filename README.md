@@ -33,7 +33,7 @@ The legacy system queries history by flight number only; this service matches op
 ## Implementation (high level)
 
 - `EsttService` — validation, cache, orchestration, metrics, responses
-- `HistoryFlightProvider` — history window, filtering, bounded scan
+- `HistoryFlightProvider` — history window, stage B/C filtering (`passesStageB`, `passesScheduleDeviation`), bounded scan
 - `FlyingTimeCalculator` — median, seasonal fallback, no-estimate branch
 
 Details: [docs/algorithm.md](docs/algorithm.md) and [docs/code-map.md](docs/code-map.md).
@@ -109,7 +109,7 @@ Shared service test fixtures: `EsttServiceTestSupport.kt`. Some integration test
 
 ## Version notes
 
-- **2026-07-03** — Algorithm hardening and simplification: season-start history window, weekday match, single bounded scan (no pagination or extended scan), null-seasonal duration bounds, simplified scan/calculator responsibilities, `estt.history.scan.*` metrics.
+- **2026-07-03** — Stage-B filter cleanup (`passesStageB`, entry operation-day check); algorithm hardening and single bounded scan; `estt.history.scan.*` metrics.
 - **2026-07-01 (v4)** — Merged `HistoryPaginationScanner` into provider; slimmed `EsttService`; deduplicated tests; docs split into `docs/`. `./gradlew check` green.
 - **2026-07-01 (v3)** — ~18% main-source reduction; merged `EsttInputValidator`; trimmed verbose KDoc while keeping domain comments.
 - **v0.1.1** — API v2 (`source`, nullable `flyingTime`), median over qualified history, Micronaut 5 / JDK 25.
