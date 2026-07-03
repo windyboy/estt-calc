@@ -1,69 +1,67 @@
 package com.gzzn.airport.repository
 
-import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.DescribeSpec
-import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
-import io.kotest.matchers.nulls.shouldNotBeNull
-import io.micronaut.test.extensions.kotest5.annotation.MicronautTest
-import jakarta.inject.Inject
+import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.shouldBe
+import java.sql.Date
+import java.sql.DriverManager
 import java.time.LocalDate
 
-@MicronautTest(environments = ["test"])
-class RepositoryTest : DescribeSpec() {
-
-    @Inject
-    lateinit var seasonRepository: SeasonRepository
-
-    @Inject
-    lateinit var historyFlightRepository: HistoryFlightRepository
-
-    init {
-
-        xdescribe("Repository Injection - disabled") {
-            it("should inject SeasonRepository") {
-                seasonRepository.shouldNotBeNull()
+class RepositoryTest :
+    DescribeSpec({
+        describe("HistoryFlightRepository H2 pagination SQL") {
+            it("executes row-number pagination and returns the first page in stable descending order") {
+                queryArrivalFlightDates(offset = 0, limit = 2) shouldBe listOf(
+                    LocalDate.of(2021, 12, 24),
+                    LocalDate.of(2021, 12, 17),
+                )
             }
 
-            it("should inject HistoryFlightRepository") {
-                historyFlightRepository.shouldNotBeNull()
+            it("executes row-number pagination with a non-zero offset") {
+                val flightDates = queryArrivalFlightDates(offset = 1, limit = 1)
+
+                flightDates shouldHaveSize 1
+                flightDates.single() shouldBe LocalDate.of(2021, 12, 17)
             }
         }
+    })
 
-        xdescribe("SeasonRepository Integration") {
-            it("should get flight season by tag") {
-                shouldNotThrowAny {
-                    seasonRepository.getFlightSeason(true)
+private fun queryArrivalFlightDates(offset: Int, limit: Int): List<LocalDate> {
+    DriverManager.getConnection(H2_URL, "sa", "").use { connection ->
+        connection.prepareStatement(toJdbcSql(HistoryFlightRepository.ARRIVAL_FLIGHT_PAGE_SQL)).use { statement ->
+            val params = jdbcParameterNames(HistoryFlightRepository.ARRIVAL_FLIGHT_PAGE_SQL)
+            params.forEachIndexed { index, name ->
+                val value = when (name) {
+                    "arriOrDept" -> HistoryFlightRepository.ARRI_OR_DEPT_ARRIVAL.toString()
+                    "flightNumber" -> "MU9941"
+                    "startDate" -> Date.valueOf(LocalDate.of(2021, 12, 1))
+                    "endDate" -> Date.valueOf(LocalDate.of(2021, 12, 31))
+                    "offset" -> offset
+                    "limit" -> limit
+                    else -> error("Unexpected SQL parameter: $name")
                 }
+                statement.setObject(index + 1, value)
             }
 
-            it("should get seasonal arrival flight") {
-                shouldNotThrowAny {
-                    seasonRepository.getSeasonalArrivalFlight("MU9941", "1", LocalDate.now())
+            statement.executeQuery().use { rs ->
+                val dates = mutableListOf<LocalDate>()
+                while (rs.next()) {
+                    dates += rs.getDate("flight_date").toLocalDate()
                 }
-            }
-        }
-
-        xdescribe("HistoryFlightRepository Integration") {
-            it("should get arrival flights with date range") {
-                val startDate = LocalDate.now().minusMonths(3)
-                val endDate = LocalDate.now()
-
-                shouldNotThrowAny {
-                    val flights = historyFlightRepository.getArrivalFlightPage("MU9941", startDate, endDate, 0, 100)
-                    flights.shouldNotBeNull()
-                }
-            }
-
-            it("should respect max rows limit") {
-                val startDate = LocalDate.now().minusYears(5)
-                val endDate = LocalDate.now()
-
-                shouldNotThrowAny {
-                    val flights = historyFlightRepository.getArrivalFlightPage("MU9941", startDate, endDate, 0, 10)
-                    flights.shouldNotBeNull()
-                    flights.size shouldBeLessThanOrEqualTo 10
-                }
+                return dates
             }
         }
     }
 }
+
+private fun toJdbcSql(sql: String): String = NAMED_PARAMETER.replace(sql, "?")
+
+private fun jdbcParameterNames(sql: String): List<String> = NAMED_PARAMETER.findAll(sql).map { it.groupValues[1] }.toList()
+
+private val NAMED_PARAMETER = Regex(":([A-Za-z][A-Za-z0-9_]*)")
+
+private const val H2_URL = "jdbc:h2:mem:repository-test;" +
+    "DB_CLOSE_DELAY=-1;" +
+    "DB_CLOSE_ON_EXIT=FALSE;" +
+    "MODE=Oracle;" +
+    "INIT=RUNSCRIPT FROM 'classpath:schema.sql'"

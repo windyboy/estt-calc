@@ -272,6 +272,40 @@ class HistoryFlightProviderTest :
                 scan.qualifiedFlights.first().flightDate shouldBe sameWeekday.flightDate
             }
 
+            it("filters history whose scheduled date differs from flight date") {
+                val targetDate = LocalDate.of(2024, 6, 5)
+                val matchingDate = historyFlight(targetDate.minusWeeks(1), 0, 100)
+                val scheduledDateMismatch = historyFlight(targetDate.minusWeeks(2), 0, 100).let {
+                    it.copy(scheduledTime = it.scheduledTime.plusDays(1))
+                }
+
+                repository.mockArrivalFlightPages(listOf(matchingDate, scheduledDateMismatch))
+
+                val scan = provider.getHistoryFlights(seasonalFlight, targetDate)
+
+                scan.stageBRows shouldBe 1
+                scan.qualifiedFlights shouldHaveSize 1
+                scan.qualifiedFlights.single() shouldBe matchingDate
+            }
+
+            it("filters scheduled-date mismatches from paginated history") {
+                val targetDate = LocalDate.of(2024, 6, 5)
+                val allDaysSeasonal = seasonalFlight.copy(operationDays = "1234567")
+                val matchingDate = historyFlight(targetDate.minusWeeks(1), 0, 100)
+                val scheduledDateMismatch = historyFlight(targetDate.minusWeeks(2), 0, 100).let {
+                    it.copy(scheduledTime = it.scheduledTime.plusDays(1))
+                }
+
+                repository.mockArrivalFlightPages(listOf(matchingDate, scheduledDateMismatch))
+
+                val paginated = provider.getPaginatedHistory(allDaysSeasonal, targetDate, offset = 0, limit = 10)
+
+                paginated.items shouldHaveSize 1
+                paginated.items.single() shouldBe matchingDate
+                paginated.totalFiltered shouldBe 1
+                paginated.hasMore.shouldBeFalse()
+            }
+
             it("does not let history window start before seasonStart") {
                 val targetDate = LocalDate.of(2024, 6, 5)
                 val earlySeason = seasonalFlight.copy(seasonStart = LocalDate.of(2024, 6, 1))

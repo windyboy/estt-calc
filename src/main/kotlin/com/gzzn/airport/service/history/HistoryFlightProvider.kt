@@ -22,7 +22,7 @@ import kotlin.math.abs
  * - **阶段 B**（[isComparableHistoryFlight]）：基本有效复查 + 与目标可比（同运营日、飞行时长容差）
  * - **阶段 C**（[passesScheduleDeviation]）：到港时刻可信（早到保留，晚到不超过阈值）
  *
- * SQL 预筛（到港、时刻齐全、窗口、计划日一致）见 [HistoryFlightRepository]。
+ * SQL 预筛（到港、时刻齐全、窗口）见 [HistoryFlightRepository]；计划日一致性在 Kotlin 层过滤以兼容多数据库。
  * 分页查询接口仅做阶段 B，不做到港时刻筛选，不启用扩展扫描（algorithm.md 附录）。
  */
 @Singleton
@@ -33,6 +33,7 @@ class HistoryFlightProvider(
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(HistoryFlightProvider::class.java)
+
         /** 每次向数据库分页拉取的原始行数。Raw rows fetched per repository page. */
         private const val CALC_SCAN_CHUNK_SIZE = 100
     }
@@ -108,6 +109,7 @@ class HistoryFlightProvider(
 
         fun appendBatch(batch: List<HistoricalFlight>) {
             for (flight in batch) {
+                if (!hasMatchingScheduledDate(flight)) continue
                 if (!isComparableHistoryFlight(seasonalFlight, targetFlightDate, flight)) continue
 
                 stageBRows++
@@ -178,7 +180,10 @@ class HistoryFlightProvider(
 
             rawOffset += batch.size
             // 仅阶段 B，不调用 passesScheduleDeviation。Stage B only — no schedule-deviation filter.
-            val filteredBatch = batch.filter { isComparableHistoryFlight(seasonalFlight, targetFlightDate, it) }
+            val filteredBatch = batch.filter {
+                hasMatchingScheduledDate(it) &&
+                    isComparableHistoryFlight(seasonalFlight, targetFlightDate, it)
+            }
             for (flight in filteredBatch) {
                 val currentIndex = totalFiltered++
                 if (currentIndex < offset) continue
@@ -289,9 +294,9 @@ class HistoryFlightProvider(
      * 阶段 B：基本有效复查 + 与目标可比（algorithm.md §7.1–§7.2）。
      * Stage B: basic validity re-check + comparability with the target flight.
      *
-     * 到港、时刻齐全、起飞早于到港、窗口与计划日一致已在 SQL 预筛；
-     * 此处复查时间顺序与计划日，并校验同运营日及飞行时长容差。
-     * Arrival/time/window checks are in SQL; this re-validates order/date and applies weekday + fly-time rules.
+     * 到港、时刻齐全与窗口已在 SQL 预筛；此处复查时间顺序，并校验同运营日及飞行时长容差。
+     * 计划日一致性由 [hasMatchingScheduledDate] 过滤，以避免数据库日期截断函数差异。
+     * Arrival/time/window checks are in SQL; this re-validates order and applies weekday + fly-time rules.
      */
     private fun isComparableHistoryFlight(
         seasonalFlight: SeasonalFlight,
@@ -313,7 +318,6 @@ class HistoryFlightProvider(
         if (!OperationDays.matches(seasonalFlight.operationDays, historyWeekday)) return exclude("weekday not in operation days")
 
         if (historyFlight.previousDepartureTime >= historyFlight.actualTime) return exclude("invalid time order")
-        if (historyFlight.scheduledTime.toLocalDate() != historyFlight.flightDate) return exclude("scheduled date mismatch")
 
         val actualFlyTime = Duration.between(historyFlight.previousDepartureTime, historyFlight.actualTime).toMinutes()
         // 有计划时长：偏差严格小于阈值（不含等于）；无计划：闭区间弱约束 [min, max]。
@@ -324,5 +328,13 @@ class HistoryFlightProvider(
 
         if (!withinFlyingTimeTolerance) return exclude("flying time outside tolerance")
         return true
+    }
+
+    private fun hasMatchingScheduledDate(historyFlight: HistoricalFlight): Boolean {
+        val matches = historyFlight.scheduledTime.toLocalDate() == historyFlight.flightDate
+        if (!matches) {
+            log.debug("Excluded history flight on {}: scheduled date mismatch", historyFlight.flightDate)
+        }
+        return matches
     }
 }
